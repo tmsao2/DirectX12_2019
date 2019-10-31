@@ -10,6 +10,7 @@
 #include "Model.h"
 #include "PMDModel.h"
 #include "PMXModel.h"
+#include "VMDLoader.h"
 
 Dx12Wrapper::Dx12Wrapper(HWND hwnd):_hwnd(hwnd)
 {
@@ -199,10 +200,10 @@ bool Dx12Wrapper::SignatureInit()
 	range[2].NumDescriptors = 4;
 	range[2].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 	//ボーン
-	/*range[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+	range[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
 	range[3].BaseShaderRegister = 2;
 	range[3].NumDescriptors = 1;
-	range[3].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;*/
+	range[3].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
 	//ルートパラメーターの設定
 	D3D12_ROOT_PARAMETER rootParam[3] = {};
@@ -216,10 +217,10 @@ bool Dx12Wrapper::SignatureInit()
 	rootParam[1].DescriptorTable.pDescriptorRanges = &range[1];
 	rootParam[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	
-	/*rootParam[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rootParam[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	rootParam[2].DescriptorTable.NumDescriptorRanges = 1;
 	rootParam[2].DescriptorTable.pDescriptorRanges = &range[3];
-	rootParam[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;*/
+	rootParam[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 
 	ID3DBlob* signature = nullptr;
 	ID3DBlob* error = nullptr;
@@ -227,7 +228,7 @@ bool Dx12Wrapper::SignatureInit()
 	//ルートシグネチャの設定
 	D3D12_ROOT_SIGNATURE_DESC rsd = {};
 	rsd.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-	rsd.NumParameters = 2;
+	rsd.NumParameters = 3;
 	rsd.pParameters = rootParam;
 	rsd.NumStaticSamplers = 2;
 	rsd.pStaticSamplers = sampleDesc;
@@ -256,10 +257,10 @@ bool Dx12Wrapper::PipelineStateInit()
 		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
 		{"TEXCOORD",0,DXGI_FORMAT_R32G32_FLOAT,0,D3D12_APPEND_ALIGNED_ELEMENT,
 		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
-		/*{"BONENO",0,DXGI_FORMAT_R16G16_UINT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		{"BONENO",0,DXGI_FORMAT_R16G16_UINT,0,D3D12_APPEND_ALIGNED_ELEMENT,
 		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
 		{"WEIGHT",0,DXGI_FORMAT_R8_UINT,0,D3D12_APPEND_ALIGNED_ELEMENT,
-		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},*/
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
 	};
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC gpsDesc = {};
@@ -644,18 +645,18 @@ ID3D12Resource * Dx12Wrapper::CreateGradationTex()
 bool Dx12Wrapper::MaterialInit()
 {
 	HRESULT result;
-	auto model = _pmd->GetModel();
+	auto pmd = _pmd->GetModel();
 	
-	std::vector<ID3D12Resource*> texResources(model.matCnt);
-	std::vector<ID3D12Resource*> sphResources(model.matCnt);
-	std::vector<ID3D12Resource*> spaResources(model.matCnt);
-	std::vector<ID3D12Resource*> toonResources(model.matCnt);
+	std::vector<ID3D12Resource*> texResources(pmd.matCnt);
+	std::vector<ID3D12Resource*> sphResources(pmd.matCnt);
+	std::vector<ID3D12Resource*> spaResources(pmd.matCnt);
+	std::vector<ID3D12Resource*> toonResources(pmd.matCnt);
 
 	ID3D12Resource* whiteBuffer = CreateWhiteTex();
 	ID3D12Resource* blackBuffer = CreateBlackTex();
 	ID3D12Resource* gradBuffer = CreateGradationTex();
 
-	for (int i = 0; i < model.matCnt; ++i)
+	for (int i = 0; i < pmd.matCnt; ++i)
 	{
 		texResources[i] = whiteBuffer;
 		sphResources[i] = whiteBuffer;
@@ -663,14 +664,14 @@ bool Dx12Wrapper::MaterialInit()
 		toonResources[i] = gradBuffer;
 		std::string toonFilePath = "toon/";
 		char toonFileName[16];
-		if (model.materials[i].toon_index < 0xff)
+		if (pmd.materials[i].toon_index < 0xff)
 		{
-			sprintf_s(toonFileName, "toon%02d.bmp", model.materials[i].toon_index + 1);
+			sprintf_s(toonFileName, "toon%02d.bmp", pmd.materials[i].toon_index + 1);
 			toonFilePath += toonFileName;
 			toonResources[i] = LoadTexture(toonFilePath);
 		}
 
-		std::string texFileName = model.materials[i].texture_file_name;
+		std::string texFileName = pmd.materials[i].texture_file_name;
 		if (strlen(texFileName.c_str()) != 0)
 		{
 			int spCnt = std::count(texFileName.begin(), texFileName.end(), '*');
@@ -679,7 +680,7 @@ bool Dx12Wrapper::MaterialInit()
 				auto namePair = SplitFileName(texFileName);
 				texFileName = (GetExtension(namePair.first) == "sph" || GetExtension(namePair.first) == "spa") ? namePair.second : namePair.first;
 			}
-			auto filePath = GetTexPathFromModelAndTexPath(model.path,texFileName.c_str());
+			auto filePath = GetTexPathFromModelAndTexPath(pmd.path,texFileName.c_str());
 			if (GetExtension(texFileName.c_str()) == "sph")
 			{
 				sphResources[i] = LoadTexture(filePath);
@@ -696,7 +697,7 @@ bool Dx12Wrapper::MaterialInit()
 	}
 
 	std::vector<ID3D12Resource*> materialBuffer;
-	auto mats = model.materials;
+	auto mats = pmd.materials;
 
 	size_t size = sizeof(Material);
 	size = (size + 0xff)&~0xff;
@@ -725,6 +726,7 @@ bool Dx12Wrapper::MaterialInit()
 		*matMap = mat;
 		++midx;
 	}
+
 	//デスクリプタヒープ設定
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
 	heapDesc.NumDescriptors = mats.size() * 5;
@@ -967,12 +969,6 @@ bool Dx12Wrapper::BoneInit()
 	auto h = _boneHeap->GetCPUDescriptorHandleForHeapStart();
 	_dev->CreateConstantBufferView(&desc, h);
 
-	
-	RotateBone("左ひじ", XM_PIDIV2);
-	RotateBone("右ひじ", XM_PIDIV2);
-	auto rootmat = XMMatrixIdentity();
-	RecursiveMatrixMultiply(_boneMap["センター"], rootmat);
-
 	result = _boneBuffer->Map(0, nullptr, (void**)&_mapedBone);
 	std::copy(_boneMats.begin(), _boneMats.end(), _mapedBone);
 
@@ -1003,16 +999,26 @@ bool Dx12Wrapper::Init()
 	CommandInit();
 	SwapChainInit();
 	RTInit();
-	_pmx.reset(new PMXModel(*_dev,"model/ドーラ/ドーラ.pmx"));
+	
+	_vmd.reset(new VMDLoader());
+	_pmd.reset(new PMDModel(*_dev, "model/初音ミク.pmd"));
+	//_pmd.reset(new PMDModel(*_dev, "model/初音ミクmetal.pmd"));
+	//_pmd.reset(new PMDModel(*_dev, "model/鏡音リン.pmd"));
+	//_pmd.reset(new PMDModel(*_dev, "model/鏡音レン.pmd"));
+	//_pmd.reset(new PMDModel(*_dev, "model/巡音ルカ.pmd"));
+	//_pmd.reset(new PMDModel(*_dev, "model/咲音メイコ.pmd"));
+	//_pmd.reset(new PMDModel(*_dev, "model/弱音ハク.pmd"));
+	//_pmd.reset(new PMDModel(*_dev, "model/亞北ネル.pmd"));
+	//_pmx.reset(new PMXModel(*_dev,"model/ドーラ/ドーラ.pmx"));
 	//_pmx.reset(new PMXModel(*_dev,"model/シスタークレア/シスタークレア.pmx"));
 
 	_dev->CreateFence(_fenceValue, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence));
 
 	DepthInit();
 	ConstantInit();
-	//MaterialInit();
-	PMXMaterialInit();
-	//BoneInit();
+	MaterialInit();
+	//PMXMaterialInit();
+	BoneInit();
 	SignatureInit();
 	PipelineStateInit();
 
@@ -1035,7 +1041,8 @@ bool Dx12Wrapper::Init()
 
 void Dx12Wrapper::Update()
 {
-	auto pmx = _pmx->GetModel();
+	//auto pmx = _pmx->GetModel();
+	auto pmd = _pmd->GetModel();
 
 	_cmdAllocator->Reset();//アロケータリセット
 	_cmdList->Reset(_cmdAllocator, nullptr);//コマンドリストリセット
@@ -1078,38 +1085,39 @@ void Dx12Wrapper::Update()
 	_cmdList->ClearDepthStencilView(dsvheap, D3D12_CLEAR_FLAG_DEPTH, 1.0f,0,0,nullptr);
 
 	//頂点バッファビューの設定
-	_cmdList->IASetVertexBuffers(0, 1, &_pmx->GetVBV());
+	_cmdList->IASetVertexBuffers(0, 1, &_pmd->GetVBV());
 
 	//インデックスバッファビューの設定
-	_cmdList->IASetIndexBuffer(&_pmx->GetIBV());
+	_cmdList->IASetIndexBuffer(&_pmd->GetIBV());
 
 	//トポロジの設定
 	_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	//ボーン
-	/*_cmdList->SetDescriptorHeaps(1, &_boneHeap);
+	_cmdList->SetDescriptorHeaps(1, &_boneHeap);
 	auto boneH = _boneHeap->GetGPUDescriptorHandleForHeapStart();
-	_cmdList->SetGraphicsRootDescriptorTable(2, boneH);*/
+	_cmdList->SetGraphicsRootDescriptorTable(2, boneH);
 
 	//モデル
 	unsigned int offset = 0;
 	auto matH = _materialHeap->GetGPUDescriptorHandleForHeapStart();
 	_cmdList->SetDescriptorHeaps(1, &_materialHeap);
-	/*for (auto& m : model.materials)
+
+	for (auto& m : pmd.materials)
 	{
 		_cmdList->SetGraphicsRootDescriptorTable(1, matH);
 		_cmdList->DrawIndexedInstanced(m.face_vert_cnt, 1, offset, 0, 0);
 		matH.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)*5;
 		offset += m.face_vert_cnt;
-	}*/
+	}
 
-	for (auto& m : pmx.materials)
+	/*for (auto& m : pmx.materials)
 	{
 		_cmdList->SetGraphicsRootDescriptorTable(1, matH);
 		_cmdList->DrawIndexedInstanced(m.vertexNum, 1, offset, 0, 0);
 		matH.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * 5;
 		offset += m.vertexNum;
-	}
+	}*/
 	
 	//リソースバリア
 	_cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(_renderTargets[bbIndex],
@@ -1121,10 +1129,13 @@ void Dx12Wrapper::Update()
 	ExecuteCommand();
 	WaitFence();
 
-	_swapchain->Present(1,0);
+	_swapchain->Present(0,0);
+	auto duration = _vmd->GetDuration();
+	std::fill(_boneMats.begin(), _boneMats.end(), XMMatrixIdentity());
+	UpdateMotion(++_frame / 8 % duration);
+	std::copy(_boneMats.begin(), _boneMats.end(), _mapedBone);
 
-	_wvp.world = XMMatrixRotationY(_angle+=0.01f);
-
+	_wvp.world = XMMatrixRotationY(_angle);
 	*_mapWvp = _wvp;
 }
 
@@ -1155,10 +1166,41 @@ void Dx12Wrapper::RecursiveMatrixMultiply(BoneNode & node, XMMATRIX & inMat)
 	}
 }
 
-void Dx12Wrapper::RotateBone(std::string boneName, float angle)
+void Dx12Wrapper::RotateBone(std::string boneName, XMVECTOR rot)
 {
-	auto bone = _boneMap[boneName];
-	auto vec = XMLoadFloat3(&bone.startPos);
-	_boneMats[bone.boneIdx] = XMMatrixTranslationFromVector(XMVectorScale(vec, -1))*
-		XMMatrixRotationZ(angle)*XMMatrixTranslationFromVector(vec);
+	auto& bonenode = _boneMap[boneName];
+	auto vec = XMLoadFloat3(&bonenode.startPos);
+	_boneMats[bonenode.boneIdx] =
+		XMMatrixTranslationFromVector(XMVectorScale(vec, -1))*
+		XMMatrixRotationQuaternion(rot)*
+		XMMatrixTranslationFromVector(vec);
+}
+
+void Dx12Wrapper::UpdateMotion(int frame)
+{
+	for (auto& boneanim : _vmd->GetAnim())
+	{
+		auto& keyframe = boneanim.second;
+		auto rit = std::find_if(keyframe.rbegin(), keyframe.rend(), 
+			[frame](const KeyFrame& k) {return k.frameNo <= frame; });
+		if (rit == keyframe.rend())continue;
+		auto it = rit.base();
+		auto q = XMLoadFloat4(&rit->quaternion);
+		XMMATRIX mat;
+		if (it != keyframe.end())
+		{
+			auto q2= XMLoadFloat4(&it->quaternion);
+			auto t = static_cast<float>(frame - rit->frameNo) /
+				static_cast<float>(it->frameNo - rit->frameNo);
+			q = XMQuaternionSlerp(q, q2, t);
+			RotateBone(boneanim.first, q);
+		}
+		else
+		{
+			RotateBone(boneanim.first, q);
+		}
+	}
+
+	auto rootmat = XMMatrixIdentity();
+	RecursiveMatrixMultiply(_boneMap["センター"], rootmat);
 }

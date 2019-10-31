@@ -12,6 +12,7 @@ using namespace DirectX;
 class Model;
 class PMXModel;
 class PMDModel;
+class VMDLoader;
 
 struct Vertex {
 	XMFLOAT3 pos;//ç¿ïW
@@ -89,8 +90,10 @@ private:
 
 	std::shared_ptr<PMDModel> _pmd;
 	std::shared_ptr<PMXModel> _pmx;
+	std::shared_ptr<VMDLoader> _vmd;
 
 	float _angle = 0;
+	int _frame = 0;
 
 	std::string GetTexPathFromModelAndTexPath(
 				const std::string& modelPath,
@@ -123,7 +126,8 @@ private:
 	void ExecuteCommand();
 	void WaitFence();
 	void RecursiveMatrixMultiply(BoneNode& node, XMMATRIX& inMat);
-	void RotateBone(std::string boneName, float angle);
+	void RotateBone(std::string boneName, XMVECTOR rot);
+	void UpdateMotion(int frame);
 
 public:
 	Dx12Wrapper(HWND hwnd);

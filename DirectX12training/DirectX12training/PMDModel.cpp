@@ -17,14 +17,6 @@ PMDModel::~PMDModel()
 void PMDModel::LoadModel(const char * path)
 {
 	FILE* fp;
-	//_model.path = "model/初音ミク.pmd";
-	//_model.path = "model/初音ミクmetal.pmd";
-	//_model.path = "model/鏡音リン.pmd";
-	//_model.path = "model/鏡音レン.pmd";
-	//_model.path = "model/巡音ルカ.pmd";
-	//_model.path = "model/咲音メイコ.pmd";
-	//_model.path = "model/弱音ハク.pmd";
-	//_model.path = "model/亞北ネル.pmd";
 	_model.path = path;
 	fopen_s(&fp, _model.path.c_str(), "rb");
 	//ヘッダー
@@ -150,5 +142,5 @@ bool PMDModel::IndexBufferInit(ID3D12Device & dev)
 
 PMDModelData PMDModel::GetModel()
 {
-	return PMDModelData();
+	return _model;
 }

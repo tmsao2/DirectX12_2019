@@ -218,6 +218,150 @@ bool PMXModel::IndexBufferInit(ID3D12Device& dev)
 	return true;
 }
 
+//bool Dx12Wrapper::PMXMaterialInit()
+//{
+//	HRESULT result;
+//	auto pmx = _pmx->GetModel();
+//
+//	std::vector<ID3D12Resource*> texResources(pmx.materials.size());
+//	std::vector<ID3D12Resource*> sphResources(pmx.materials.size());
+//	std::vector<ID3D12Resource*> spaResources(pmx.materials.size());
+//	std::vector<ID3D12Resource*> toonResources(pmx.materials.size());
+//
+//	ID3D12Resource* whiteBuffer = _tex->CreateWhiteTex();
+//	ID3D12Resource* blackBuffer = _tex->CreateBlackTex();
+//
+//	for (int i = 0; i < pmx.materials.size(); ++i)
+//	{
+//		texResources[i] = whiteBuffer;
+//		sphResources[i] = whiteBuffer;
+//		spaResources[i] = blackBuffer;
+//		toonResources[i] = whiteBuffer;
+//		std::string toonFilePath = "toon/";
+//		char toonFileName[16];
+//		if (pmx.materials[i].toonflag !=0)
+//		{
+//			sprintf_s(toonFileName, "toon%02d.bmp", pmx.materials[i].toonTex + 1);
+//			toonFilePath += toonFileName;
+//			toonResources[i] = _tex->LoadTexture(toonFilePath);
+//		}
+//		else if (pmx.materials[i].toonTex < 0xff)
+//		{
+//			toonFilePath = _tex->GetTexPathFromModelAndTexPath(pmx.path, pmx.handle[pmx.materials[i].toonTex].c_str());
+//			toonResources[i] = _tex->LoadTexture(toonFilePath);
+//		}
+//		std::string texFileName;
+//
+//		if (pmx.materials[i].tex < 0xff)
+//		{
+//			texFileName = pmx.handle[pmx.materials[i].tex];
+//		}
+//		std::string filePath;
+//		if (strlen(texFileName.c_str()) != 0)
+//		{
+//			filePath = _tex->GetTexPathFromModelAndTexPath(pmx.path, texFileName.c_str());
+//			texResources[i] = _tex->LoadTexture(filePath);
+//		}
+//		if (pmx.materials[i].sp_tex < 0xff)
+//		{
+//			if (strlen(pmx.handle[pmx.materials[i].sp_tex].c_str()))
+//			{
+//				if (pmx.materials[i].sphere == 1)//乗算スフィア
+//				{
+//					filePath = _tex->GetTexPathFromModelAndTexPath(pmx.path, pmx.handle[pmx.materials[i].sp_tex].c_str());
+//					sphResources[i] = _tex->LoadTexture(filePath);
+//				}
+//				else if (pmx.materials[i].sphere == 2)//加算スフィア
+//				{
+//					filePath = _tex->GetTexPathFromModelAndTexPath(pmx.path, pmx.handle[pmx.materials[i].sp_tex].c_str());
+//					spaResources[i] = _tex->LoadTexture(filePath);
+//				}
+//				else//サブテクスチャ(追加UV1のx,yをUV参照して通常テクスチャ描画を行う)
+//				{
+//
+//				}
+//			}
+//		}
+//	}
+//
+//	std::vector<ID3D12Resource*> materialBuffer;
+//	auto mats = pmx.materials;
+//
+//	size_t size = sizeof(Material);
+//	size = (size + 0xff)&~0xff;
+//
+//	int midx = 0;
+//	materialBuffer.resize(mats.size());
+//
+//	for (auto& matBuff : materialBuffer)
+//	{
+//		result = _dev->CreateCommittedResource(
+//			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+//			D3D12_HEAP_FLAGS::D3D12_HEAP_FLAG_NONE,
+//			&CD3DX12_RESOURCE_DESC::Buffer(size),
+//			D3D12_RESOURCE_STATE_GENERIC_READ,
+//			nullptr,
+//			IID_PPV_ARGS(&matBuff)
+//		);
+//
+//		mat.diffuse = mats[midx].diffuse;
+//		mat.power = mats[midx].power;
+//		mat.specular = mats[midx].specular;
+//		mat.ambient = mats[midx].ambient;
+//
+//		Material* matMap = nullptr;
+//		result = matBuff->Map(0, nullptr, (void**)&matMap);
+//		*matMap = mat;
+//		++midx;
+//	}
+//	デスクリプタヒープ設定
+//	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+//	heapDesc.NumDescriptors = mats.size() * 5;
+//	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+//	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+//	heapDesc.NodeMask = 0;
+//
+//	result = _dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&_materialHeap));
+//
+//	シェーダーリソースビューの設定
+//	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+//	srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+//	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+//	srvDesc.Texture2D.MipLevels = 1;
+//	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+//
+//	auto h = _materialHeap->GetCPUDescriptorHandleForHeapStart();
+//	auto inc = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+//
+//	D3D12_CONSTANT_BUFFER_VIEW_DESC cbDesc = {};
+//	cbDesc.SizeInBytes = size;
+//	for (int i = 0; i < mats.size(); i++)
+//	{
+//		マテリアル
+//		cbDesc.BufferLocation = materialBuffer[i]->GetGPUVirtualAddress();
+//		_dev->CreateConstantBufferView(&cbDesc, h);
+//		h.ptr += inc;
+//		テクスチャ
+//		srvDesc.Format = texResources[i]->GetDesc().Format;
+//		_dev->CreateShaderResourceView(texResources[i], &srvDesc, h);
+//		h.ptr += inc;
+//		スフィア(乗算)
+//		srvDesc.Format = sphResources[i]->GetDesc().Format;
+//		_dev->CreateShaderResourceView(sphResources[i], &srvDesc, h);
+//		h.ptr += inc;
+//		スフィア(加算)
+//		srvDesc.Format = spaResources[i]->GetDesc().Format;
+//		_dev->CreateShaderResourceView(spaResources[i], &srvDesc, h);
+//		h.ptr += inc;
+//		トゥーン
+//		srvDesc.Format = toonResources[i]->GetDesc().Format;
+//		_dev->CreateShaderResourceView(toonResources[i], &srvDesc, h);
+//		h.ptr += inc;
+//	}
+//	return false;
+//}
+
+
 
 PMXModelData PMXModel::GetModel()
 {

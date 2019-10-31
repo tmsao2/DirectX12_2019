@@ -141,6 +141,7 @@
     <ClCompile Include="Model.cpp" />
     <ClCompile Include="PMDModel.cpp" />
     <ClCompile Include="PMXModel.cpp" />
+    <ClCompile Include="TextureResource.cpp" />
     <ClCompile Include="VMDLoader.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -151,6 +152,7 @@
     <ClInclude Include="Model.h" />
     <ClInclude Include="PMDModel.h" />
     <ClInclude Include="PMXModel.h" />
+    <ClInclude Include="TextureResource.h" />
     <ClInclude Include="VMDLoader.h" />
   </ItemGroup>
   <ItemGroup>

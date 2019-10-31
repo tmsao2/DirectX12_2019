@@ -5,6 +5,13 @@
 #include <dxgi1_6.h>
 #include <vector>
 
+struct Material {
+	DirectX::XMFLOAT4 diffuse;
+	float power;
+	DirectX::XMFLOAT3 specular;
+	DirectX::XMFLOAT3 ambient;
+};
+
 class Model
 {
 protected:

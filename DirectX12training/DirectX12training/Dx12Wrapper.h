@@ -9,7 +9,6 @@
 
 using namespace DirectX;
 
-class Model;
 class PMXModel;
 class PMDModel;
 class VMDLoader;
@@ -25,13 +24,6 @@ struct WVPMatrix {
 	XMMATRIX view;
 	XMMATRIX projection;
 	XMFLOAT3 eye;
-};
-
-struct Material {
-	XMFLOAT4 diffuse;
-	float power;
-	XMFLOAT3 specular;
-	XMFLOAT3 ambient;
 };
 
 struct BoneNode {
@@ -63,7 +55,6 @@ private:
 	ID3D12DescriptorHeap* _rtvDescHeap;		//レンダーターゲットビュー用
 	ID3D12DescriptorHeap* _dsvDescHeap;		//深度ステンシルビュー用
 	ID3D12DescriptorHeap* _cbvDescHeap;		//定数バッファビュー用
-	ID3D12DescriptorHeap* _materialHeap;	//マテリアル用
 	ID3D12DescriptorHeap* _boneHeap;		//ボーン用
 
 	//ルートシグネチャ
@@ -80,13 +71,11 @@ private:
 
 	WVPMatrix _wvp;
 	WVPMatrix* _mapWvp;
-	Material mat;
 	std::map<std::string, ID3D12Resource*> _resTbl;
 
 	std::vector<XMMATRIX> _boneMats;
 	XMMATRIX* _mapedBone;
 	std::map<std::string, BoneNode> _boneMap;
-
 
 	std::shared_ptr<PMDModel> _pmd;
 	std::shared_ptr<PMXModel> _pmx;
@@ -94,22 +83,6 @@ private:
 
 	float _angle = 0;
 	int _frame = 0;
-
-	std::string GetTexPathFromModelAndTexPath(
-				const std::string& modelPath,
-				const char*			texPath);
-
-	std::wstring GetWideStringFromString(const std::string str);
-
-	std::pair<std::string,std::string> SplitFileName(const std::string& path,
-													const char splitter = '*');
-	std::string GetExtension(const std::string& path);
-
-	ID3D12Resource* LoadTexture(std::string& texPath);
-	ID3D12Resource* CreateWhiteTex();
-	ID3D12Resource* CreateBlackTex();
-	ID3D12Resource* CreateGradationTex();
-
 
 	bool DeviceInit();
 	bool CommandInit();
@@ -119,7 +92,6 @@ private:
 	bool PipelineStateInit();
 	bool DepthInit();
 	bool ConstantInit();
-	bool MaterialInit();
 	bool PMXMaterialInit();
 	bool BoneInit();
 

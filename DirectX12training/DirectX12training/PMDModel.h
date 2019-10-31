@@ -1,5 +1,9 @@
 #pragma once
 #include "Model.h"
+#include <memory>
+
+class TextureResource;
+
 
 struct PMDHeader {
 	char magic[3];		//"PMD"
@@ -55,12 +59,18 @@ class PMDModel :
 {
 private:
 	PMDModelData _model;
+	std::shared_ptr<TextureResource> _tex;
+	Material mat;
+	ID3D12DescriptorHeap* _materialHeap;	//マテリアル用
+
 	void LoadModel(const char* path);
 	bool VertexBufferInit(ID3D12Device& dev);
 	bool IndexBufferInit(ID3D12Device& dev);
+	bool MaterialInit(ID3D12Device & dev);
 public:
 	PMDModel(ID3D12Device& dev, const char* path);
 	~PMDModel();
+	ID3D12DescriptorHeap* MaterialHeap()const;
 	PMDModelData GetModel();
 };
 

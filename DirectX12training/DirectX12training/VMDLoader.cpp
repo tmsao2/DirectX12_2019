@@ -59,7 +59,7 @@ VMDLoader::VMDLoader()
 
 	for (auto& f : _vmd.motion)
 	{
-		_animData[f.boneName].emplace_back(KeyFrame(f.frameNo, f.rotation));
+		_animData[f.boneName].emplace_back(KeyFrame(f.frameNo, f.rotation,f.location));
 		_duration = std::max(_duration, f.frameNo );
 	}
 

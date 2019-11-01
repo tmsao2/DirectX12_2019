@@ -606,8 +606,7 @@ void Dx12Wrapper::Update()
 
 	_swapchain->Present(0,0);
 	auto duration = _vmd->GetDuration();
-	std::fill(_boneMats.begin(), _boneMats.end(), XMMatrixIdentity());
-	UpdateMotion(++_frame / 8 % duration);
+	UpdateMotion(++_frame / 14 % duration);
 	std::copy(_boneMats.begin(), _boneMats.end(), _mapedBone);
 
 	_wvp.world = XMMatrixRotationY(_angle);
@@ -632,7 +631,7 @@ void Dx12Wrapper::WaitFence()
 	}
 }
 
-void Dx12Wrapper::RecursiveMatrixMultiply(BoneNode & node, XMMATRIX & inMat)
+void Dx12Wrapper::RecursiveMatrixMultiply(BoneNode & node, const XMMATRIX & inMat)
 {
 	_boneMats[node.boneIdx] *= inMat;
 	for (auto& cnode : node.children)
@@ -653,14 +652,18 @@ void Dx12Wrapper::RotateBone(std::string boneName, XMVECTOR rot)
 
 void Dx12Wrapper::UpdateMotion(int frame)
 {
+	std::fill(_boneMats.begin(), _boneMats.end(), XMMatrixIdentity());
+
 	for (auto& boneanim : _vmd->GetAnim())
 	{
+		if (_boneMap.find(boneanim.first) == _boneMap.end())continue;
 		auto& keyframe = boneanim.second;
 		auto rit = std::find_if(keyframe.rbegin(), keyframe.rend(), 
 			[frame](const KeyFrame& k) {return k.frameNo <= frame; });
 		if (rit == keyframe.rend())continue;
 		auto it = rit.base();
 		auto q = XMLoadFloat4(&rit->quaternion);
+		auto pos = XMLoadFloat3(&rit->pos);
 		XMMATRIX mat;
 		if (it != keyframe.end())
 		{
@@ -668,12 +671,20 @@ void Dx12Wrapper::UpdateMotion(int frame)
 			auto t = static_cast<float>(frame - rit->frameNo) /
 				static_cast<float>(it->frameNo - rit->frameNo);
 			q = XMQuaternionSlerp(q, q2, t);
-			RotateBone(boneanim.first, q);
+			auto pos2= XMLoadFloat3(&it->pos);
+			pos= XMVectorLerp(pos, pos2, t);
 		}
-		else
-		{
-			RotateBone(boneanim.first, q);
-		}
+
+		auto& bonenode = _boneMap[boneanim.first];
+		auto vec = XMLoadFloat3(&bonenode.startPos);
+
+		mat =XMMatrixTranslationFromVector(XMVectorScale(vec, -1))*
+			 XMMatrixRotationQuaternion(q)*
+			 XMMatrixTranslationFromVector(vec);
+
+		mat = mat * XMMatrixTranslationFromVector(pos);
+
+		_boneMats[bonenode.boneIdx] = mat;
 	}
 
 	auto rootmat = XMMatrixIdentity();

@@ -92,12 +92,11 @@ private:
 	bool PipelineStateInit();
 	bool DepthInit();
 	bool ConstantInit();
-	bool PMXMaterialInit();
 	bool BoneInit();
 
 	void ExecuteCommand();
 	void WaitFence();
-	void RecursiveMatrixMultiply(BoneNode& node, XMMATRIX& inMat);
+	void RecursiveMatrixMultiply(BoneNode& node, const XMMATRIX& inMat);
 	void RotateBone(std::string boneName, XMVECTOR rot);
 	void UpdateMotion(int frame);
 

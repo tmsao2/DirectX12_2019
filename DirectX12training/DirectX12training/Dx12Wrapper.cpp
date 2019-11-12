@@ -123,6 +123,181 @@ bool Dx12Wrapper::RTInit()
 	return true;
 }
 
+bool Dx12Wrapper::Create1ResourceAndView()
+{
+	auto heapDesc = _rtvDescHeap->GetDesc();
+
+	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+	rtvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+
+	heapDesc.NumDescriptors = 1;
+	_dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&_firstRtvHeap));
+	_dev->CreateRenderTargetView(_firstResource, nullptr, _firstRtvHeap->GetCPUDescriptorHandleForHeapStart());
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Format=rtvDesc.Format;
+	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+
+	_dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&_firstSrvHeap));
+	_dev->CreateShaderResourceView(_firstResource, &srvDesc, _firstSrvHeap->GetCPUDescriptorHandleForHeapStart());
+	return true;
+}
+
+bool Dx12Wrapper::Create2ResourceAndView()
+{
+	return false;
+}
+
+bool Dx12Wrapper::CreatePeraVertex()
+{
+	Vertex vertex[] = { {{-1, 1,0.1},{1,1}},
+						{{-1,-1,0.1},{0,1}},
+						{{ 1, 1,0.1},{1,0}},
+						{{ 1,-1,0.1},{0,0}} };
+	
+	//頂点バッファ作成
+	ID3D12Resource* vertexBuffer = nullptr;
+	auto result = _dev->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), D3D12_HEAP_FLAG_NONE,
+		&CD3DX12_RESOURCE_DESC::Buffer(sizeof(vertex)), D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr, IID_PPV_ARGS(&vertexBuffer));
+
+	Vertex* vertMap = nullptr;
+	result = vertexBuffer->Map(0, nullptr, (void**)&vertMap);
+	std::copy(vertex, vertex, vertMap);
+	vertexBuffer->Unmap(0, nullptr);
+
+	//頂点バッファビューの作成
+	_vb.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
+	_vb.StrideInBytes = sizeof(Vertex);
+	_vb.SizeInBytes = sizeof(vertex);
+	return false;
+}
+
+bool Dx12Wrapper::CreatePeraPipeline()
+{
+	//レイアウト作成
+	D3D12_INPUT_ELEMENT_DESC inputLayoutDesc[] = {
+		{"POSITION",0,DXGI_FORMAT_R32G32B32_FLOAT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
+		{"TEXCOORD",0,DXGI_FORMAT_R32G32_FLOAT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
+	};
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC gpsDesc = {};
+	//ルートシグネチャと頂点レイアウト
+	gpsDesc.pRootSignature = _rootSignature;
+	gpsDesc.InputLayout.pInputElementDescs = inputLayoutDesc;
+	gpsDesc.InputLayout.NumElements = _countof(inputLayoutDesc);
+	//シェーダー系
+	gpsDesc.VS = CD3DX12_SHADER_BYTECODE(_vsShader);
+	gpsDesc.PS = CD3DX12_SHADER_BYTECODE(_psShader);
+	//レンダーターゲット
+	gpsDesc.NumRenderTargets = 1;
+	gpsDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	//深度ステンシル
+	gpsDesc.DepthStencilState.DepthEnable = false;
+	gpsDesc.DepthStencilState.StencilEnable = false;
+
+	//ラスタライザ
+	//ラスタライザの設定
+	D3D12_RASTERIZER_DESC rsDesc = {};
+	rsDesc.FillMode = D3D12_FILL_MODE_SOLID;
+	rsDesc.CullMode = D3D12_CULL_MODE_NONE;
+	rsDesc.FrontCounterClockwise = false;
+	rsDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
+	rsDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
+	rsDesc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
+	rsDesc.DepthClipEnable = true;
+	rsDesc.MultisampleEnable = false;
+	rsDesc.AntialiasedLineEnable = false;
+	rsDesc.ForcedSampleCount = 0;
+	rsDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+
+	gpsDesc.RasterizerState = rsDesc;
+
+	//その他
+	gpsDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	gpsDesc.NodeMask = 0;
+	gpsDesc.SampleDesc.Count = 1;
+	gpsDesc.SampleDesc.Quality = 0;
+	gpsDesc.SampleMask = 0xffffffff;
+
+	gpsDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+
+	auto result = _dev->CreateGraphicsPipelineState(&gpsDesc, IID_PPV_ARGS(&_firstPipeline));
+	if (FAILED(result))
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool Dx12Wrapper::CreatePeraSignature()
+{
+	//サンプラの設定
+	D3D12_STATIC_SAMPLER_DESC sampleDesc[1] = {};
+	sampleDesc[0].Filter = D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;//補間しない
+	sampleDesc[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;//横繰り返し
+	sampleDesc[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;//縦繰り返し
+	sampleDesc[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;//奥行繰り返し
+	sampleDesc[0].MaxLOD = D3D12_FLOAT32_MAX;//ミップマップ最大値
+	sampleDesc[0].MinLOD = 0.0f;//ミップマップ最小値
+	sampleDesc[0].MipLODBias = 0.0f;
+	sampleDesc[0].BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+	sampleDesc[0].ShaderRegister = 0;
+	sampleDesc[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	sampleDesc[0].RegisterSpace = 0;
+	sampleDesc[0].MaxAnisotropy = 0;
+	sampleDesc[0].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+
+	//レンジの設定
+	D3D12_DESCRIPTOR_RANGE range[1] = {};
+	//シェーダーリソースビュー
+	range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	range[0].BaseShaderRegister = 0;
+	range[0].NumDescriptors = 1;
+	range[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+	
+	//ルートパラメーターの設定
+	D3D12_ROOT_PARAMETER rootParam[1] = {};
+	rootParam[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rootParam[0].DescriptorTable.NumDescriptorRanges = 1;
+	rootParam[0].DescriptorTable.pDescriptorRanges = &range[0];
+	rootParam[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+	ID3DBlob* signature = nullptr;
+	ID3DBlob* error = nullptr;
+
+	//ルートシグネチャの設定
+	D3D12_ROOT_SIGNATURE_DESC rsd = {};
+	rsd.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+	rsd.NumParameters = 1;
+	rsd.pParameters = rootParam;
+	rsd.NumStaticSamplers = 1;
+	rsd.pStaticSamplers = sampleDesc;
+
+	//シグネチャ、エラーの初期化
+	auto result = D3D12SerializeRootSignature(&rsd, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error);
+	//ルートシグネチャの生成
+	result = _dev->CreateRootSignature(0, signature->GetBufferPointer(),
+		signature->GetBufferSize(), IID_PPV_ARGS(&_firstSignature));
+
+	if (FAILED(result))
+	{
+		return false;
+	}
+	return true;
+}
+
+
 bool Dx12Wrapper::SignatureInit()
 {
 	//サンプラの設定
@@ -451,6 +626,7 @@ bool Dx12Wrapper::BoneInit()
 	return false;
 }
 
+
 Dx12Wrapper::~Dx12Wrapper()
 {
 }
@@ -670,6 +846,7 @@ void Dx12Wrapper::UpdateMotion(int frame)
 			auto q2= XMLoadFloat4(&it->quaternion);
 			auto t = static_cast<float>(frame - rit->frameNo) /
 				static_cast<float>(it->frameNo - rit->frameNo);
+			t = _pmd->GetYFromXOnBezier(t, it->p1, it->p2, 12);
 			q = XMQuaternionSlerp(q, q2, t);
 			auto pos2= XMLoadFloat3(&it->pos);
 			pos= XMVectorLerp(pos, pos2, t);

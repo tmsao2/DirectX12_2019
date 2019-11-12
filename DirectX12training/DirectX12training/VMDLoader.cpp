@@ -5,7 +5,7 @@
 VMDLoader::VMDLoader()
 {
 	FILE* fp;
-	std::string path = "motion/モーション/ヤゴコロダンス.vmd";
+	std::string path = "motion/モーション/swing2.vmd";
 	fopen_s(&fp, path.c_str(), "rb");
 	fseek(fp, 50, SEEK_SET);
 	unsigned long cnt;
@@ -59,7 +59,9 @@ VMDLoader::VMDLoader()
 
 	for (auto& f : _vmd.motion)
 	{
-		_animData[f.boneName].emplace_back(KeyFrame(f.frameNo, f.rotation,f.location));
+		_animData[f.boneName].emplace_back(KeyFrame(f.frameNo, f.rotation, f.location,
+			DirectX::XMFLOAT2((float)f.interpolation[3 + 15] / 127.0f, (float)f.interpolation[7 + 15] / 127.0f),
+			DirectX::XMFLOAT2((float)f.interpolation[11 + 15] / 127.0f, (float)f.interpolation[15 + 15] / 127.0f)));
 		_duration = std::max(_duration, f.frameNo );
 	}
 

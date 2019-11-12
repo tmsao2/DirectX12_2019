@@ -283,3 +283,24 @@ PMDModelData PMDModel::GetModel()
 {
 	return _model;
 }
+
+float PMDModel::GetYFromXOnBezier(float x, DirectX::XMFLOAT2 p1, DirectX::XMFLOAT2 p2, int cnt)
+{
+	if (p1.x == p1.y&&p2.x == p2.y) {
+		return x;
+	}
+	float t = x;
+	float k0 = 1 + 3 * p1.x - 3 * p2.x;
+	float k1 = 3 * p2.x - 6 * p1.x;
+	float k2 = 3 * p1.x;
+	const float epsilon = 0.0005f;
+	for (int i = 0; i < cnt; ++i) {
+
+		auto ft = k0 * t*t*t + k1 * t*t + k2 * t - x;
+		if (ft <= epsilon && ft >= -epsilon)break;
+		t -= ft / 2;
+	}
+	auto r = 1 - t;
+
+	return t * t*t + 3 * t*t*r*p2.y + 3 * t*r*r*p1.y;
+}

@@ -135,11 +135,11 @@ ID3D12Resource * TextureResource::LoadTexture(std::string & texPath)
 ID3D12Resource* TextureResource::CreateWhiteTex()
 {
 	D3D12_HEAP_PROPERTIES texHeapProp = {};
-	texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;//
-	texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;//
-	texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;// 
-	texHeapProp.CreationNodeMask = 0;//
-	texHeapProp.VisibleNodeMask = 0;//
+	texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;
+	texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;
+	texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;
+	texHeapProp.CreationNodeMask = 0;
+	texHeapProp.VisibleNodeMask = 0;
 
 	D3D12_RESOURCE_DESC resDesc = {};
 	resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -147,11 +147,11 @@ ID3D12Resource* TextureResource::CreateWhiteTex()
 	resDesc.Height = 4;//‚‚³
 	resDesc.DepthOrArraySize = 1;
 	resDesc.SampleDesc.Count = 1;
-	resDesc.SampleDesc.Quality = 0;//
-	resDesc.MipLevels = 1;//
+	resDesc.SampleDesc.Quality = 0;
+	resDesc.MipLevels = 1;
 	resDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;//
-	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;//
+	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 	ID3D12Resource* whiteBuff = nullptr;
 	auto result = _dev->CreateCommittedResource(
 		&texHeapProp,
@@ -174,11 +174,11 @@ ID3D12Resource* TextureResource::CreateWhiteTex()
 ID3D12Resource * TextureResource::CreateBlackTex()
 {
 	D3D12_HEAP_PROPERTIES texHeapProp = {};
-	texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;//
-	texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;//
-	texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;// 
-	texHeapProp.CreationNodeMask = 0;//
-	texHeapProp.VisibleNodeMask = 0;//
+	texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;
+	texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;
+	texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;
+	texHeapProp.CreationNodeMask = 0;
+	texHeapProp.VisibleNodeMask = 0;
 
 	D3D12_RESOURCE_DESC resDesc = {};
 	resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -186,11 +186,11 @@ ID3D12Resource * TextureResource::CreateBlackTex()
 	resDesc.Height = 4;//‚‚³
 	resDesc.DepthOrArraySize = 1;
 	resDesc.SampleDesc.Count = 1;
-	resDesc.SampleDesc.Quality = 0;//
-	resDesc.MipLevels = 1;//
+	resDesc.SampleDesc.Quality = 0;
+	resDesc.MipLevels = 1;
 	resDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;//
-	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;//
+	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 	ID3D12Resource* blackBuff = nullptr;
 	auto result = _dev->CreateCommittedResource(
 		&texHeapProp,
@@ -213,11 +213,11 @@ ID3D12Resource * TextureResource::CreateBlackTex()
 ID3D12Resource * TextureResource::CreateGradationTex()
 {
 	D3D12_HEAP_PROPERTIES texHeapProp = {};
-	texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;//
-	texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;//
-	texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;// 
-	texHeapProp.CreationNodeMask = 0;//
-	texHeapProp.VisibleNodeMask = 0;//
+	texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;
+	texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;
+	texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;
+	texHeapProp.CreationNodeMask = 0;
+	texHeapProp.VisibleNodeMask = 0;
 
 	D3D12_RESOURCE_DESC resDesc = {};
 	resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -225,11 +225,11 @@ ID3D12Resource * TextureResource::CreateGradationTex()
 	resDesc.Height = 4;//‚‚³
 	resDesc.DepthOrArraySize = 1;
 	resDesc.SampleDesc.Count = 1;
-	resDesc.SampleDesc.Quality = 0;//
-	resDesc.MipLevels = 1;//
+	resDesc.SampleDesc.Quality = 0;
+	resDesc.MipLevels = 1;
 	resDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;//
-	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;//
+	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
 	ID3D12Resource* gradBuff = nullptr;
 	auto result = _dev->CreateCommittedResource(

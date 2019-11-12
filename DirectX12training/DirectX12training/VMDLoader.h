@@ -58,8 +58,10 @@ struct KeyFrame
 	int frameNo;
 	DirectX::XMFLOAT4 quaternion;
 	DirectX::XMFLOAT3 pos;
-	KeyFrame() :frameNo(0), quaternion(0, 0, 0, 0),pos(0,0,0) {}
-	KeyFrame(int f, DirectX::XMFLOAT4 q, DirectX::XMFLOAT3 p) :frameNo(f), quaternion(q),pos(p) {}
+	DirectX::XMFLOAT2 p1, p2;
+	KeyFrame(int f, DirectX::XMFLOAT4 q, DirectX::XMFLOAT3 p,
+		DirectX::XMFLOAT2 ip1, DirectX::XMFLOAT2 ip2)
+		:frameNo(f), quaternion(q), pos(p), p1(ip1), p2(ip2) {}
 };
 
 class VMDLoader

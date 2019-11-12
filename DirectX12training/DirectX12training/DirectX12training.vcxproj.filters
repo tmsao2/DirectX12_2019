@@ -77,5 +77,6 @@
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shader.hlsl" />
+    <FxCompile Include="Pera.hlsl" />
   </ItemGroup>
 </Project>

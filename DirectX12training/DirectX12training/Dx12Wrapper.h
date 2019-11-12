@@ -6,8 +6,10 @@
 #include <vector>
 #include <map>
 #include <memory>
+#include <wrl.h>
 
 using namespace DirectX;
+using namespace Microsoft::WRL;
 
 class PMXModel;
 class PMDModel;
@@ -15,7 +17,6 @@ class VMDLoader;
 
 struct Vertex {
 	XMFLOAT3 pos;//座標
-	XMFLOAT3 normal;//法線
 	XMFLOAT2 uv;//UV
 };
 
@@ -57,6 +58,16 @@ private:
 	ID3D12DescriptorHeap* _cbvDescHeap;		//定数バッファビュー用
 	ID3D12DescriptorHeap* _boneHeap;		//ボーン用
 
+	//マルチパス用
+	ID3D12DescriptorHeap* _firstRtvHeap;
+	ID3D12DescriptorHeap* _firstSrvHeap;
+	ID3D12Resource* _firstResource;
+	ID3D12RootSignature* _firstSignature;
+	ID3D12PipelineState* _firstPipeline;
+	D3D12_VERTEX_BUFFER_VIEW _vb;
+	
+
+
 	//ルートシグネチャ
 	ID3D12RootSignature* _rootSignature = nullptr;
 	//パイプラインステート
@@ -93,6 +104,11 @@ private:
 	bool DepthInit();
 	bool ConstantInit();
 	bool BoneInit();
+	bool Create1ResourceAndView();
+	bool Create2ResourceAndView();
+	bool CreatePeraVertex();
+	bool CreatePeraPipeline();
+	bool CreatePeraSignature();
 
 	void ExecuteCommand();
 	void WaitFence();

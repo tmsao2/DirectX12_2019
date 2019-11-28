@@ -45,6 +45,12 @@
     <ClCompile Include="TextureResource.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="Primitive.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="Plane.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -74,9 +80,19 @@
     <ClInclude Include="TextureResource.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="Primitive.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Plane.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shader.hlsl" />
     <FxCompile Include="Pera.hlsl" />
+    <FxCompile Include="PMDShader.hlsl" />
+    <FxCompile Include="PMXShader.hlsl" />
+    <FxCompile Include="Shadow.hlsl" />
+    <FxCompile Include="PrimitiveShader.hlsl" />
   </ItemGroup>
 </Project>

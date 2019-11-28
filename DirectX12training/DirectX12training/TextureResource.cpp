@@ -3,7 +3,7 @@
 #pragma comment(lib,"DirectXTex.lib")
 
 
-TextureResource::TextureResource(ID3D12Device& dev):_dev(&dev)
+TextureResource::TextureResource(Microsoft::WRL::ComPtr<ID3D12Device> dev):_dev(dev)
 {
 }
 
@@ -48,7 +48,7 @@ std::string TextureResource::GetExtension(const std::string & path)
 }
 
 
-ID3D12Resource * TextureResource::LoadTexture(std::string & texPath)
+Microsoft::WRL::ComPtr<ID3D12Resource> TextureResource::LoadTexture(std::string & texPath)
 {
 	auto result = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED);
 	//テクスチャ読み込み
@@ -100,8 +100,7 @@ ID3D12Resource * TextureResource::LoadTexture(std::string & texPath)
 	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 
-	//テクスチャバッファ
-	ID3D12Resource* buffer = nullptr;
+	
 
 	//テクスチャオブジェクト生成
 	result = _dev->CreateCommittedResource(
@@ -132,7 +131,7 @@ ID3D12Resource * TextureResource::LoadTexture(std::string & texPath)
 
 
 
-ID3D12Resource* TextureResource::CreateWhiteTex()
+Microsoft::WRL::ComPtr<ID3D12Resource> TextureResource::CreateWhiteTex()
 {
 	D3D12_HEAP_PROPERTIES texHeapProp = {};
 	texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;
@@ -152,7 +151,6 @@ ID3D12Resource* TextureResource::CreateWhiteTex()
 	resDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-	ID3D12Resource* whiteBuff = nullptr;
 	auto result = _dev->CreateCommittedResource(
 		&texHeapProp,
 		D3D12_HEAP_FLAG_NONE,//特に指定なし
@@ -171,7 +169,7 @@ ID3D12Resource* TextureResource::CreateWhiteTex()
 	return whiteBuff;
 }
 
-ID3D12Resource * TextureResource::CreateBlackTex()
+Microsoft::WRL::ComPtr<ID3D12Resource> TextureResource::CreateBlackTex()
 {
 	D3D12_HEAP_PROPERTIES texHeapProp = {};
 	texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;
@@ -191,7 +189,7 @@ ID3D12Resource * TextureResource::CreateBlackTex()
 	resDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-	ID3D12Resource* blackBuff = nullptr;
+
 	auto result = _dev->CreateCommittedResource(
 		&texHeapProp,
 		D3D12_HEAP_FLAG_NONE,//特に指定なし
@@ -210,7 +208,7 @@ ID3D12Resource * TextureResource::CreateBlackTex()
 	return blackBuff;
 }
 
-ID3D12Resource * TextureResource::CreateGradationTex()
+Microsoft::WRL::ComPtr<ID3D12Resource> TextureResource::CreateGradationTex()
 {
 	D3D12_HEAP_PROPERTIES texHeapProp = {};
 	texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;
@@ -231,7 +229,6 @@ ID3D12Resource * TextureResource::CreateGradationTex()
 	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
-	ID3D12Resource* gradBuff = nullptr;
 	auto result = _dev->CreateCommittedResource(
 		&texHeapProp,
 		D3D12_HEAP_FLAG_NONE,//特に指定なし
@@ -240,6 +237,7 @@ ID3D12Resource * TextureResource::CreateGradationTex()
 		nullptr,
 		IID_PPV_ARGS(&gradBuff)
 	);
+
 	if (FAILED(result)) {
 		return nullptr;
 	}

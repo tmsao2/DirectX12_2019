@@ -5,7 +5,7 @@
 VMDLoader::VMDLoader()
 {
 	FILE* fp;
-	std::string path = "motion/モーション/swing2.vmd";
+	std::string path = "motion/モーション/ヤゴコロダンス.vmd";
 	fopen_s(&fp, path.c_str(), "rb");
 	fseek(fp, 50, SEEK_SET);
 	unsigned long cnt;

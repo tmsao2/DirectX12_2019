@@ -1,25 +1,33 @@
 #include "PMDModel.h"
-#include "d3dx12.h"
-#include "TextureResource.h"
+#include <d3dx12.h>
+#include <d3dcompiler.h>
 #include <iostream>
+#include "TextureResource.h"
+#include "VMDLoader.h"
 
-PMDModel::PMDModel(ID3D12Device& dev, const char* path) :Model(dev, path)
+PMDModel::PMDModel(Microsoft::WRL::ComPtr<ID3D12Device> dev, const char* path) :Model(dev, path)
 {
-	_tex.reset(new TextureResource(dev));
 	LoadModel(path);
 	VertexBufferInit(dev);
 	IndexBufferInit(dev);
 	MaterialInit(dev);
+	BoneInit(dev);
+	CreateRootSignature(dev);
+	InitPipeLine(dev);
 }
-
 
 PMDModel::~PMDModel()
 {
 }
 
-ID3D12DescriptorHeap * PMDModel::MaterialHeap()const
+Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> PMDModel::MaterialHeap()const
 {
 	return _materialHeap;
+}
+
+Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> PMDModel::BoneHeap() const
+{
+	return _boneHeap;
 }
 
 void PMDModel::LoadModel(const char * path)
@@ -83,7 +91,7 @@ void PMDModel::LoadModel(const char * path)
 	fclose(fp);
 }
 
-bool PMDModel::VertexBufferInit(ID3D12Device & dev)
+bool PMDModel::VertexBufferInit(Microsoft::WRL::ComPtr<ID3D12Device> dev)
 {
 	//ヒープ設定
 	D3D12_HEAP_PROPERTIES heapProp = {};
@@ -106,60 +114,57 @@ bool PMDModel::VertexBufferInit(ID3D12Device & dev)
 	resDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 
 	//頂点バッファ作成
-	ID3D12Resource* vertexBuffer = nullptr;
-	auto result = dev.CreateCommittedResource(
+	auto result = dev->CreateCommittedResource(
 		&heapProp, D3D12_HEAP_FLAG_NONE,
 		&resDesc, D3D12_RESOURCE_STATE_GENERIC_READ,
-		nullptr, IID_PPV_ARGS(&vertexBuffer));
+		nullptr, IID_PPV_ARGS(_vertexBuffer.GetAddressOf()));
 
 	PMDVertex* vertMap = nullptr;
-	result = vertexBuffer->Map(0, nullptr, (void**)&vertMap);
+	result = _vertexBuffer->Map(0, nullptr, (void**)&vertMap);
 	memcpy(vertMap, &_model.vertices[0], sizeof(PMDVertex)*_model.vertCnt);
-	vertexBuffer->Unmap(0, nullptr);
+	_vertexBuffer->Unmap(0, nullptr);
 
 	//頂点バッファビューの作成
-	_vbView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
+	_vbView.BufferLocation = _vertexBuffer->GetGPUVirtualAddress();
 	_vbView.StrideInBytes = sizeof(PMDVertex);
 	_vbView.SizeInBytes = sizeof(PMDVertex)*_model.vertCnt;
 
 	return true;
 }
 
-bool PMDModel::IndexBufferInit(ID3D12Device & dev)
+bool PMDModel::IndexBufferInit(Microsoft::WRL::ComPtr<ID3D12Device> dev)
 {
-	ID3D12Resource* indexBuffer = nullptr;
-
-	auto result = dev.CreateCommittedResource(
+	auto result = dev->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), D3D12_HEAP_FLAG_NONE,
 		&CD3DX12_RESOURCE_DESC::Buffer(_model.indices.size() * sizeof(_model.indices[0])),
-		D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&indexBuffer));
+		D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(_indexBuffer.GetAddressOf()));
 
 	//インデックスデータ転送
 	unsigned short* idxMap = nullptr;
-	result = indexBuffer->Map(0, nullptr, (void**)&idxMap);
+	result = _indexBuffer->Map(0, nullptr, (void**)&idxMap);
 
 	std::copy(std::begin(_model.indices), std::end(_model.indices), idxMap);
-	indexBuffer->Unmap(0, nullptr);
+	_indexBuffer->Unmap(0, nullptr);
 
-	_ibView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
+	_ibView.BufferLocation = _indexBuffer->GetGPUVirtualAddress();
 	_ibView.Format = DXGI_FORMAT_R16_UINT;
 	_ibView.SizeInBytes = _model.indices.size() * sizeof(_model.indices[0]);
 
 	return true;
 }
 
-bool PMDModel::MaterialInit(ID3D12Device & dev)
+bool PMDModel::MaterialInit(Microsoft::WRL::ComPtr<ID3D12Device> dev)
 {
 	HRESULT result;
 
-	std::vector<ID3D12Resource*> texResources(_model.matCnt);
-	std::vector<ID3D12Resource*> sphResources(_model.matCnt);
-	std::vector<ID3D12Resource*> spaResources(_model.matCnt);
-	std::vector<ID3D12Resource*> toonResources(_model.matCnt);
+	texResources.resize(_model.matCnt);
+	sphResources.resize(_model.matCnt);
+	spaResources.resize(_model.matCnt);
+	toonResources.resize(_model.matCnt);
 
-	ID3D12Resource* whiteBuffer = _tex->CreateWhiteTex();
-	ID3D12Resource* blackBuffer = _tex->CreateBlackTex();
-	ID3D12Resource* gradBuffer = _tex->CreateGradationTex();
+	whiteBuffer = _tex->CreateWhiteTex();
+	blackBuffer = _tex->CreateBlackTex();
+	gradBuffer = _tex->CreateGradationTex();
 
 	for (int i = 0; i < _model.matCnt; ++i)
 	{
@@ -201,10 +206,9 @@ bool PMDModel::MaterialInit(ID3D12Device & dev)
 		}
 	}
 
-	std::vector<ID3D12Resource*> materialBuffer;
 	auto mats = _model.materials;
 
-	size_t size = sizeof(Material);
+	size_t size = sizeof(PMDMaterial);
 	size = (size + 0xff)&~0xff;
 
 	int midx = 0;
@@ -212,23 +216,18 @@ bool PMDModel::MaterialInit(ID3D12Device & dev)
 
 	for (auto& matBuff : materialBuffer)
 	{
-		result = dev.CreateCommittedResource(
+		result = dev->CreateCommittedResource(
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
 			D3D12_HEAP_FLAGS::D3D12_HEAP_FLAG_NONE,
 			&CD3DX12_RESOURCE_DESC::Buffer(size),
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr,
-			IID_PPV_ARGS(&matBuff)
+			IID_PPV_ARGS(matBuff.GetAddressOf())
 		);
 
-		mat.diffuse = mats[midx].diffuse;
-		mat.power = mats[midx].power;
-		mat.specular = mats[midx].specular;
-		mat.ambient = mats[midx].ambient;
-
-		Material* matMap = nullptr;
+		PMDMaterial* matMap = nullptr;
 		result = matBuff->Map(0, nullptr, (void**)&matMap);
-		*matMap = mat;
+		*matMap = mats[midx];
 		++midx;
 	}
 
@@ -239,7 +238,7 @@ bool PMDModel::MaterialInit(ID3D12Device & dev)
 	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	heapDesc.NodeMask = 0;
 
-	result = dev.CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&_materialHeap));
+	result = dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(_materialHeap.GetAddressOf()));
 
 	//シェーダーリソースビューの設定
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
@@ -249,7 +248,7 @@ bool PMDModel::MaterialInit(ID3D12Device & dev)
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
 	auto h = _materialHeap->GetCPUDescriptorHandleForHeapStart();
-	auto inc = dev.GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	auto inc = dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	D3D12_CONSTANT_BUFFER_VIEW_DESC cbDesc = {};
 	cbDesc.SizeInBytes = size;
@@ -257,50 +256,191 @@ bool PMDModel::MaterialInit(ID3D12Device & dev)
 	{
 		//マテリアル
 		cbDesc.BufferLocation = materialBuffer[i]->GetGPUVirtualAddress();
-		dev.CreateConstantBufferView(&cbDesc, h);
+		dev->CreateConstantBufferView(&cbDesc, h);
 		h.ptr += inc;
 		//テクスチャ
 		srvDesc.Format = texResources[i]->GetDesc().Format;
-		dev.CreateShaderResourceView(texResources[i], &srvDesc, h);
+		dev->CreateShaderResourceView(texResources[i].Get(), &srvDesc, h);
 		h.ptr += inc;
 		//スフィア(乗算)
 		srvDesc.Format = sphResources[i]->GetDesc().Format;
-		dev.CreateShaderResourceView(sphResources[i], &srvDesc, h);
+		dev->CreateShaderResourceView(sphResources[i].Get(), &srvDesc, h);
 		h.ptr += inc;
 		//スフィア(加算)
 		srvDesc.Format = spaResources[i]->GetDesc().Format;
-		dev.CreateShaderResourceView(spaResources[i], &srvDesc, h);
+		dev->CreateShaderResourceView(spaResources[i].Get(), &srvDesc, h);
 		h.ptr += inc;
 		//トゥーン
 		srvDesc.Format = toonResources[i]->GetDesc().Format;
-		dev.CreateShaderResourceView(toonResources[i], &srvDesc, h);
+		dev->CreateShaderResourceView(toonResources[i].Get(), &srvDesc, h);
 		h.ptr += inc;
 	}
 	return false;
 }
 
-PMDModelData PMDModel::GetModel()
+bool PMDModel::BoneInit(Microsoft::WRL::ComPtr<ID3D12Device> dev)
 {
-	return _model;
+	//行列の初期化
+	_boneMats.resize(_model.boneCnt);
+	std::fill(_boneMats.begin(), _boneMats.end(), DirectX::XMMatrixIdentity());
+	//マップ情報の構築
+	for (int idx = 0; idx < _model.boneCnt; ++idx)
+	{
+		auto& b = _model.bones[idx];
+		auto& boneNode = _boneMap[b.boneName];
+		boneNode.boneIdx = idx;
+		boneNode.startPos = b.boneHeadPos;
+		boneNode.endPos = _model.bones[b.tailBoneIndex].boneHeadPos;
+	}
+	//親に追加
+	for (auto& b : _boneMap)
+	{
+		if (_model.bones[b.second.boneIdx].parentBoneIndex >= _model.boneCnt)continue;
+		auto parentName = _model.bones[_model.bones[b.second.boneIdx].parentBoneIndex].boneName;
+		_boneMap[parentName].children.push_back(&b.second);
+	}
+
+	size_t size = sizeof(DirectX::XMMATRIX)* _model.boneCnt;
+	size = (size + 0xff) & ~0xff;
+
+
+	auto result = dev->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+		D3D12_HEAP_FLAG_NONE,
+		&CD3DX12_RESOURCE_DESC::Buffer(size),
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(_boneBuffer.GetAddressOf()));
+
+
+	D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
+	descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	descHeapDesc.NodeMask = 0;
+	descHeapDesc.NumDescriptors = 1;
+	descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+
+	result = dev->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(_boneHeap.GetAddressOf()));
+
+	D3D12_CONSTANT_BUFFER_VIEW_DESC desc = {};
+	desc.BufferLocation = _boneBuffer->GetGPUVirtualAddress();
+	desc.SizeInBytes = size;
+
+	auto h = _boneHeap->GetCPUDescriptorHandleForHeapStart();
+	dev->CreateConstantBufferView(&desc, h);
+
+	result = _boneBuffer->Map(0, nullptr, (void**)&_mapedBone);
+	std::copy(_boneMats.begin(), _boneMats.end(), _mapedBone);
+
+	return false;
 }
 
-float PMDModel::GetYFromXOnBezier(float x, DirectX::XMFLOAT2 p1, DirectX::XMFLOAT2 p2, int cnt)
+bool PMDModel::InitPipeLine(Microsoft::WRL::ComPtr<ID3D12Device> dev)
 {
-	if (p1.x == p1.y&&p2.x == p2.y) {
-		return x;
-	}
-	float t = x;
-	float k0 = 1 + 3 * p1.x - 3 * p2.x;
-	float k1 = 3 * p2.x - 6 * p1.x;
-	float k2 = 3 * p1.x;
-	const float epsilon = 0.0005f;
-	for (int i = 0; i < cnt; ++i) {
+	HRESULT result;
+	result = D3DCompileFromFile(L"PMDShader.hlsl", nullptr, nullptr, "PmdVS", "vs_5_0",
+		D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &_vsShader, nullptr);
+	result = D3DCompileFromFile(L"PMDShader.hlsl", nullptr, nullptr, "PmdPS", "ps_5_0",
+		D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &_psShader, nullptr);
+	result = D3DCompileFromFile(L"Shadow.hlsl", nullptr, nullptr, "ShadowVS", "vs_5_0",
+		D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &_shadowVS, nullptr);
+	result = D3DCompileFromFile(L"Shadow.hlsl", nullptr, nullptr, "ShadowPS", "ps_5_0",
+		D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &_shadowPS, nullptr);
+	//レイアウト作成
+	std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayoutDesc = {
+		{"POSITION",0,DXGI_FORMAT_R32G32B32_FLOAT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
+		{"NORMAL",0,DXGI_FORMAT_R32G32B32_FLOAT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
+		{"TEXCOORD",0,DXGI_FORMAT_R32G32_FLOAT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
+		{"BONENO",0,DXGI_FORMAT_R16G16_UINT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
+		{"WEIGHT",0,DXGI_FORMAT_R8_UINT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
+	};
 
-		auto ft = k0 * t*t*t + k1 * t*t + k2 * t - x;
-		if (ft <= epsilon && ft >= -epsilon)break;
-		t -= ft / 2;
-	}
-	auto r = 1 - t;
-
-	return t * t*t + 3 * t*t*r*p2.y + 3 * t*r*r*p1.y;
+	CreatePipeLine(dev, inputLayoutDesc);
+	return false;
 }
+
+void PMDModel::Update()
+{
+	static auto lastTime = GetTickCount();
+	if (GetTickCount() - lastTime > _vmd->GetDuration()*33.33333f) 
+	{
+		lastTime = GetTickCount(); 
+	}
+	UpdateMotion(static_cast<float>(GetTickCount() - lastTime) / 33.33333f);
+}
+
+void PMDModel::ShadowDraw(ID3D12Device * dev, ID3D12GraphicsCommandList * cmd, D3D12_VIEWPORT & view, D3D12_RECT & rect, ID3D12DescriptorHeap * wvp)
+{
+	//パイプラインステートの設定
+	cmd->SetPipelineState(_shadowPipeline.Get());
+	//ルートシグネチャの設定
+	cmd->SetGraphicsRootSignature(_shadowSignature.Get());
+	//カメラ
+	cmd->SetDescriptorHeaps(1, &wvp);
+	auto h = wvp->GetGPUDescriptorHandleForHeapStart();
+	cmd->SetGraphicsRootDescriptorTable(0, h);
+	//ビューポートの設定
+	cmd->RSSetViewports(1, &view);
+	//シザー矩形の設定
+	cmd->RSSetScissorRects(1, &rect);
+	//頂点バッファビューの設定
+	cmd->IASetVertexBuffers(0, 1, &_vbView);
+	//インデックスバッファビューの設定
+	cmd->IASetIndexBuffer(&_ibView);
+	//トポロジの設定
+	cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	//ボーン
+	auto boneH = _boneHeap->GetGPUDescriptorHandleForHeapStart();
+	cmd->SetDescriptorHeaps(1, _boneHeap.GetAddressOf());
+	cmd->SetGraphicsRootDescriptorTable(2, boneH);
+	
+	cmd->DrawIndexedInstanced(_model.indices.size(), 1, 0, 0, 0);
+	
+}
+
+void PMDModel::Draw(ID3D12Device* dev, ID3D12GraphicsCommandList* cmd, D3D12_VIEWPORT& view, D3D12_RECT& rect, ID3D12DescriptorHeap* wvp, ID3D12DescriptorHeap* shadow)
+{
+	//パイプラインステートの設定
+	cmd->SetPipelineState(_pipelineState.Get());
+	//ルートシグネチャの設定
+	cmd->SetGraphicsRootSignature(_rootSignature.Get());
+	//カメラ
+	cmd->SetDescriptorHeaps(1, &wvp);
+	auto h = wvp->GetGPUDescriptorHandleForHeapStart();
+	cmd->SetGraphicsRootDescriptorTable(0, h);
+	//ビューポートの設定
+	cmd->RSSetViewports(1, &view);
+	//シザー矩形の設定
+	cmd->RSSetScissorRects(1, &rect);
+	//頂点バッファビューの設定
+	cmd->IASetVertexBuffers(0, 1, &_vbView);
+	//インデックスバッファビューの設定
+	cmd->IASetIndexBuffer(&_ibView);
+	//トポロジの設定
+	cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	//ボーン
+	auto boneH = _boneHeap->GetGPUDescriptorHandleForHeapStart();
+	cmd->SetDescriptorHeaps(1, _boneHeap.GetAddressOf());
+	cmd->SetGraphicsRootDescriptorTable(2, boneH);
+	//影
+	cmd->SetDescriptorHeaps(1, &shadow);
+	cmd->SetGraphicsRootDescriptorTable(3, shadow->GetGPUDescriptorHandleForHeapStart());
+
+	//マテリアル
+	auto matH = _materialHeap->GetGPUDescriptorHandleForHeapStart();
+	cmd->SetDescriptorHeaps(1, _materialHeap.GetAddressOf());
+
+	unsigned int offset = 0;
+	for (auto& m : _model.materials)
+	{
+		cmd->SetGraphicsRootDescriptorTable(1, matH);
+		cmd->DrawIndexedInstanced(m.face_vert_cnt, 1, offset, 0, 0);
+		matH.ptr += dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * 5;
+		offset += m.face_vert_cnt;
+	}
+}
+

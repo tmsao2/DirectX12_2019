@@ -13,7 +13,7 @@ using namespace Microsoft::WRL;
 
 class PMXModel;
 class PMDModel;
-class VMDLoader;
+class Plane;
 
 struct Vertex {
 	XMFLOAT3 pos;//座標
@@ -24,57 +24,55 @@ struct WVPMatrix {
 	XMMATRIX world;
 	XMMATRIX view;
 	XMMATRIX projection;
+	XMMATRIX lvp;
 	XMFLOAT3 eye;
 };
 
-struct BoneNode {
-	int boneIdx;
-	XMFLOAT3 startPos;
-	XMFLOAT3 endPos;
-	std::vector<BoneNode*> children;
-};
 
 class Dx12Wrapper
 {
 private:
 	HWND _hwnd;
 	//デバイス
-	ID3D12Device* _dev;
+	ComPtr<ID3D12Device> _dev;
 	//コマンド関連
-	ID3D12CommandAllocator* _cmdAllocator;
-	ID3D12GraphicsCommandList* _cmdList;
-	ID3D12CommandQueue* _cmdQue;
+	ComPtr<ID3D12CommandAllocator> _cmdAllocator;
+	ComPtr<ID3D12GraphicsCommandList> _cmdList;
+	ComPtr<ID3D12CommandQueue> _cmdQue;
 	//DXGI関連
-	IDXGIFactory6* _dxgi;
-	IDXGISwapChain4* _swapchain;
+	ComPtr<IDXGIFactory6> _dxgi;
+	ComPtr<IDXGISwapChain4> _swapchain;
 	//待ちのためのフェンス
-	ID3D12Fence* _fence;
+	ComPtr<ID3D12Fence> _fence;
 	UINT64 _fenceValue = 0;
 	//バックバッファとフロントバッファ
-	std::vector<ID3D12Resource*> _renderTargets;
+	std::vector<ComPtr<ID3D12Resource>> _renderTargets;
 	//デスクリプタを格納する領域
-	ID3D12DescriptorHeap* _rtvDescHeap;		//レンダーターゲットビュー用
-	ID3D12DescriptorHeap* _dsvDescHeap;		//深度ステンシルビュー用
-	ID3D12DescriptorHeap* _cbvDescHeap;		//定数バッファビュー用
-	ID3D12DescriptorHeap* _boneHeap;		//ボーン用
+	ComPtr<ID3D12DescriptorHeap> _rtvHeap;		//レンダーターゲットビュー用
+	ComPtr<ID3D12DescriptorHeap> _dsvHeap;		//深度ステンシルビュー用
+	ComPtr<ID3D12DescriptorHeap> _depthSrvHeap;
+	ComPtr<ID3D12DescriptorHeap> _wvpHeap;		//定数バッファビュー用
+	ComPtr<ID3D12DescriptorHeap> _boneHeap;		//ボーン用
 
 	//マルチパス用
-	ID3D12DescriptorHeap* _firstRtvHeap;
-	ID3D12DescriptorHeap* _firstSrvHeap;
-	ID3D12Resource* _firstResource;
-	ID3D12RootSignature* _firstSignature;
-	ID3D12PipelineState* _firstPipeline;
+	ComPtr<ID3D12DescriptorHeap> _finalRtvHeap;
+	ComPtr<ID3D12DescriptorHeap> _finalSrvHeap;
+	ComPtr<ID3D12Resource> _resource;
+	ComPtr<ID3D12RootSignature> _finalSignature;
+	ComPtr<ID3D12PipelineState> _finalPipeline;
 	D3D12_VERTEX_BUFFER_VIEW _vb;
+	ComPtr<ID3D12Resource> vertexBuffer = nullptr;
+	//深度バッファー作成
+	ComPtr<ID3D12Resource> depthBuffer = nullptr;
+
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _shadowDsvHeap;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _shadowSrvHeap;
+	Microsoft::WRL::ComPtr<ID3D12Resource> _shadowBuffer;
 	
-
-
-	//ルートシグネチャ
-	ID3D12RootSignature* _rootSignature = nullptr;
-	//パイプラインステート
-	ID3D12PipelineState* _pipelineState = nullptr;
 	//シェーダー
-	ID3DBlob* _vsShader = nullptr;
-	ID3DBlob* _psShader = nullptr;
+	ComPtr<ID3DBlob> _peraVsShader = nullptr;
+	ComPtr<ID3DBlob> _peraPsShader = nullptr;
+
 	//ビューポート
 	D3D12_VIEWPORT _viewPort;
 	//シザー矩形
@@ -82,40 +80,31 @@ private:
 
 	WVPMatrix _wvp;
 	WVPMatrix* _mapWvp;
-	std::map<std::string, ID3D12Resource*> _resTbl;
 
-	std::vector<XMMATRIX> _boneMats;
-	XMMATRIX* _mapedBone;
-	std::map<std::string, BoneNode> _boneMap;
-
-	std::shared_ptr<PMDModel> _pmd;
+	std::shared_ptr<PMDModel> _pmd1;
+	std::shared_ptr<PMDModel> _pmd2;
 	std::shared_ptr<PMXModel> _pmx;
-	std::shared_ptr<VMDLoader> _vmd;
+	std::shared_ptr<Plane> _plane;
 
 	float _angle = 0;
-	int _frame = 0;
 
 	bool DeviceInit();
 	bool CommandInit();
 	bool SwapChainInit();
 	bool RTInit();
-	bool SignatureInit();
-	bool PipelineStateInit();
 	bool DepthInit();
 	bool ConstantInit();
-	bool BoneInit();
 	bool Create1ResourceAndView();
 	bool Create2ResourceAndView();
 	bool CreatePeraVertex();
 	bool CreatePeraPipeline();
 	bool CreatePeraSignature();
+	bool CreateDepthTex();
+	bool CreateShadow();
 
 	void ExecuteCommand();
 	void WaitFence();
-	void RecursiveMatrixMultiply(BoneNode& node, const XMMATRIX& inMat);
-	void RotateBone(std::string boneName, XMVECTOR rot);
-	void UpdateMotion(int frame);
-
+	
 public:
 	Dx12Wrapper(HWND hwnd);
 	~Dx12Wrapper();

@@ -1,9 +1,7 @@
 #pragma once
 #include "Model.h"
 #include <memory>
-
-class TextureResource;
-
+#include <map>
 
 struct PMDHeader {
 	char magic[3];		//"PMD"
@@ -58,21 +56,24 @@ class PMDModel :
 	public Model
 {
 private:
+	int _frame = 0;
+
 	PMDModelData _model;
-	std::shared_ptr<TextureResource> _tex;
-	Material mat;
-	ID3D12DescriptorHeap* _materialHeap;	//マテリアル用
-
-
+	
 	void LoadModel(const char* path);
-	bool VertexBufferInit(ID3D12Device& dev);
-	bool IndexBufferInit(ID3D12Device& dev);
-	bool MaterialInit(ID3D12Device & dev);
+	bool VertexBufferInit(Microsoft::WRL::ComPtr<ID3D12Device> dev);
+	bool IndexBufferInit(Microsoft::WRL::ComPtr<ID3D12Device> dev);
+	bool MaterialInit(Microsoft::WRL::ComPtr<ID3D12Device> dev);
+	bool BoneInit(Microsoft::WRL::ComPtr<ID3D12Device> dev);
+	bool InitPipeLine(Microsoft::WRL::ComPtr<ID3D12Device> dev);
 public:
-	PMDModel(ID3D12Device& dev, const char* path);
+	PMDModel(Microsoft::WRL::ComPtr<ID3D12Device> dev, const char* path);
 	~PMDModel();
-	ID3D12DescriptorHeap* MaterialHeap()const;
-	PMDModelData GetModel();
-	float GetYFromXOnBezier(float x, DirectX::XMFLOAT2 p1, DirectX::XMFLOAT2 p2,int cnt);
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> MaterialHeap()const;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> BoneHeap()const;
+
+	void Update();
+	void ShadowDraw(ID3D12Device* dev, ID3D12GraphicsCommandList* cmd, D3D12_VIEWPORT& view, D3D12_RECT& rect, ID3D12DescriptorHeap* wvp);
+	void Draw(ID3D12Device* dev, ID3D12GraphicsCommandList* cmd, D3D12_VIEWPORT& view, D3D12_RECT& rect, ID3D12DescriptorHeap* wvp, ID3D12DescriptorHeap* shadow);
 };
 

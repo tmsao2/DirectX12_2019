@@ -20,16 +20,6 @@ PMDModel::~PMDModel()
 {
 }
 
-Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> PMDModel::MaterialHeap()const
-{
-	return _materialHeap;
-}
-
-Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> PMDModel::BoneHeap() const
-{
-	return _boneHeap;
-}
-
 void PMDModel::LoadModel(const char * path)
 {
 	FILE* fp;

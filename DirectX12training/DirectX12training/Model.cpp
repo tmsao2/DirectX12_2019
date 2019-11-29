@@ -51,13 +51,30 @@ bool Model::CreatePipeLine(Microsoft::WRL::ComPtr<ID3D12Device> dev, std::vector
 
 	gpsDesc.RasterizerState = rsDesc;
 
+	D3D12_RENDER_TARGET_BLEND_DESC renderBlendDesc = {};
+	renderBlendDesc.BlendEnable = true;
+	renderBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	renderBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	renderBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+	renderBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+	renderBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+	renderBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	renderBlendDesc.LogicOp = D3D12_LOGIC_OP_CLEAR;
+	renderBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
 	//‚»‚Ì‘¼
-	gpsDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	D3D12_BLEND_DESC blendDesc = {};
+	blendDesc.AlphaToCoverageEnable = false;
+	blendDesc.IndependentBlendEnable = false;
+	for (auto i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
+	{
+		blendDesc.RenderTarget[i] = renderBlendDesc;
+	}
 	gpsDesc.NodeMask = 0;
 	gpsDesc.SampleDesc.Count = 1;
 	gpsDesc.SampleDesc.Quality = 0;
 	gpsDesc.SampleMask = 0xffffffff;
-
+	gpsDesc.BlendState = blendDesc;
 	gpsDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
 	auto result = dev->CreateGraphicsPipelineState(&gpsDesc, IID_PPV_ARGS(_pipelineState.GetAddressOf()));

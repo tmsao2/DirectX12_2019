@@ -69,8 +69,6 @@ private:
 public:
 	PMDModel(Microsoft::WRL::ComPtr<ID3D12Device> dev, const char* path);
 	~PMDModel();
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> MaterialHeap()const;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> BoneHeap()const;
 
 	void Update();
 	void ShadowDraw(ID3D12Device* dev, ID3D12GraphicsCommandList* cmd, D3D12_VIEWPORT& view, D3D12_RECT& rect, ID3D12DescriptorHeap* wvp);

@@ -19,7 +19,6 @@ private:
 
 	bool InitWindow();
 	std::shared_ptr<Dx12Wrapper> _dx12;
-
 public:
 	~Application();
 	bool Init();

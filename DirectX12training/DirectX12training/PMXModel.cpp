@@ -1,8 +1,9 @@
 #include "PMXModel.h"
 #include <iostream>
-#include "d3dx12.h"
+#include <d3dx12.h>
+#include <d3dcompiler.h>
 #include "TextureResource.h"
-
+#include "VMDLoader.h"
 
 PMXModel::PMXModel(Microsoft::WRL::ComPtr<ID3D12Device> dev, const char* path) :Model(dev, path)
 {
@@ -11,7 +12,9 @@ PMXModel::PMXModel(Microsoft::WRL::ComPtr<ID3D12Device> dev, const char* path) :
 	VertexBufferInit(dev);
 	IndexBufferInit(dev);
 	MaterialInit(dev);
-	//BoneInit(dev);
+	BoneInit(dev);
+	CreateRootSignature(dev);
+	InitPipeLine(dev);
 }
 
 PMXModel::~PMXModel()
@@ -394,7 +397,15 @@ bool PMXModel::MaterialInit(Microsoft::WRL::ComPtr<ID3D12Device> dev)
 
 		PMXMaterial* matMap = nullptr;
 		result = matBuff->Map(0, nullptr, (void**)&matMap);
-		*matMap = mats[midx];
+		if (midx == 20|| midx == 21|| midx == 17)
+		{
+			mats[midx].diffuse.w = 0;
+		}
+		else
+		{
+			*matMap = mats[midx];
+		}
+		
 		++midx;
 	}
 	//デスクリプタヒープ設定
@@ -457,7 +468,14 @@ bool PMXModel::BoneInit(Microsoft::WRL::ComPtr<ID3D12Device> dev)
 		auto& boneNode = _boneMap[str];
 		boneNode.boneIdx = idx;
 		boneNode.startPos = b.pos;
-		boneNode.endPos = b.linkPoint ? _model.bones[b.linkPoint_Index].pos : b.linkPoint_Offset;
+		if (b.linkPoint && b.linkPoint_Index < 65535)
+		{
+			boneNode.endPos = _model.bones[b.linkPoint_Index].pos;
+		}
+		else
+		{
+			boneNode.endPos = b.linkPoint_Offset;
+		}
 	}
 	//親に追加
 	for (auto& b : _boneMap)
@@ -501,6 +519,35 @@ bool PMXModel::BoneInit(Microsoft::WRL::ComPtr<ID3D12Device> dev)
 	return false;
 }
 
+bool PMXModel::InitPipeLine(Microsoft::WRL::ComPtr<ID3D12Device> dev)
+{
+	HRESULT result;
+	result = D3DCompileFromFile(L"PMXShader.hlsl", nullptr, nullptr, "PmxVS", "vs_5_0",
+		D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &_vsShader, nullptr);
+	result = D3DCompileFromFile(L"PMXShader.hlsl", nullptr, nullptr, "PmxPS", "ps_5_0",
+		D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &_psShader, nullptr);
+	result = D3DCompileFromFile(L"Shadow.hlsl", nullptr, nullptr, "ShadowVS", "vs_5_0",
+		D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &_shadowVS, nullptr);
+	result = D3DCompileFromFile(L"Shadow.hlsl", nullptr, nullptr, "ShadowPS", "ps_5_0",
+		D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &_shadowPS, nullptr);
+	//レイアウト作成
+	std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayoutDesc = {
+		{"POSITION",0,DXGI_FORMAT_R32G32B32_FLOAT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
+		{"NORMAL",0,DXGI_FORMAT_R32G32B32_FLOAT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
+		{"TEXCOORD",0,DXGI_FORMAT_R32G32_FLOAT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
+		{"BONENO",0,DXGI_FORMAT_R16G16_UINT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
+		{"WEIGHT",0,DXGI_FORMAT_R8_UINT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
+	};
+
+	CreatePipeLine(dev, inputLayoutDesc);
+	return false;
+}
+
 std::string PMXModel::WideToMultiByte(const std::wstring wstr)
 {
 	auto num1 = WideCharToMultiByte(CP_ACP, WC_NO_BEST_FIT_CHARS, wstr.c_str(), -1, nullptr, 0, nullptr, nullptr);
@@ -510,14 +557,83 @@ std::string PMXModel::WideToMultiByte(const std::wstring wstr)
 	return str;
 }
 
-PMXModelData PMXModel::GetModel()
+void PMXModel::Update()
 {
-	return _model;
+	static auto lastTime = GetTickCount();
+	if (GetTickCount() - lastTime > _vmd->GetDuration()*33.33333f)
+	{
+		lastTime = GetTickCount();
+	}
+	UpdateMotion(static_cast<float>(GetTickCount() - lastTime) / 33.33333f);
 }
 
-Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> PMXModel::MaterialHeap() const
+void PMXModel::ShadowDraw(ID3D12Device * dev, ID3D12GraphicsCommandList * cmd, D3D12_VIEWPORT & view, D3D12_RECT & rect, ID3D12DescriptorHeap * wvp)
 {
-	return _materialHeap;
+	//パイプラインステートの設定
+	cmd->SetPipelineState(_shadowPipeline.Get());
+	//ルートシグネチャの設定
+	cmd->SetGraphicsRootSignature(_shadowSignature.Get());
+	//カメラ
+	cmd->SetDescriptorHeaps(1, &wvp);
+	auto h = wvp->GetGPUDescriptorHandleForHeapStart();
+	cmd->SetGraphicsRootDescriptorTable(0, h);
+	//ビューポートの設定
+	cmd->RSSetViewports(1, &view);
+	//シザー矩形の設定
+	cmd->RSSetScissorRects(1, &rect);
+	//頂点バッファビューの設定
+	cmd->IASetVertexBuffers(0, 1, &_vbView);
+	//インデックスバッファビューの設定
+	cmd->IASetIndexBuffer(&_ibView);
+	//トポロジの設定
+	cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	//ボーン
+	auto boneH = _boneHeap->GetGPUDescriptorHandleForHeapStart();
+	cmd->SetDescriptorHeaps(1, _boneHeap.GetAddressOf());
+	cmd->SetGraphicsRootDescriptorTable(2, boneH);
+
+	cmd->DrawIndexedInstanced(_model.indices.size(), 1, 0, 0, 0);
 }
 
+void PMXModel::Draw(ID3D12Device * dev, ID3D12GraphicsCommandList * cmd, D3D12_VIEWPORT & view, D3D12_RECT & rect, ID3D12DescriptorHeap * wvp, ID3D12DescriptorHeap * shadow)
+{
+	_model.materials;
+	//パイプラインステートの設定
+	cmd->SetPipelineState(_pipelineState.Get());
+	//ルートシグネチャの設定
+	cmd->SetGraphicsRootSignature(_rootSignature.Get());
+	//カメラ
+	cmd->SetDescriptorHeaps(1, &wvp);
+	auto h = wvp->GetGPUDescriptorHandleForHeapStart();
+	cmd->SetGraphicsRootDescriptorTable(0, h);
+	//ビューポートの設定
+	cmd->RSSetViewports(1, &view);
+	//シザー矩形の設定
+	cmd->RSSetScissorRects(1, &rect);
+	//頂点バッファビューの設定
+	cmd->IASetVertexBuffers(0, 1, &_vbView);
+	//インデックスバッファビューの設定
+	cmd->IASetIndexBuffer(&_ibView);
+	//トポロジの設定
+	cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	//ボーン
+	auto boneH = _boneHeap->GetGPUDescriptorHandleForHeapStart();
+	cmd->SetDescriptorHeaps(1, _boneHeap.GetAddressOf());
+	cmd->SetGraphicsRootDescriptorTable(2, boneH);
+	//影
+	cmd->SetDescriptorHeaps(1, &shadow);
+	cmd->SetGraphicsRootDescriptorTable(3, shadow->GetGPUDescriptorHandleForHeapStart());
 
+	//マテリアル
+	auto matH = _materialHeap->GetGPUDescriptorHandleForHeapStart();
+	cmd->SetDescriptorHeaps(1, _materialHeap.GetAddressOf());
+
+	unsigned int offset = 0;
+	for (auto& m : _model.materials)
+	{
+		cmd->SetGraphicsRootDescriptorTable(1, matH);
+		cmd->DrawIndexedInstanced(m.vertexNum, 1, offset, 0, 0);
+		matH.ptr += dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * 5;
+		offset += m.vertexNum;
+	}
+}

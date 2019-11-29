@@ -1,6 +1,9 @@
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
 #pragma comment(lib,"d3dcompiler.lib")
+#pragma comment(lib,"Effekseer.lib")
+#pragma comment(lib,"EffekseerRendererDX12.lib")
+#pragma comment(lib,"LLGI.lib")
 #include "Dx12Wrapper.h"
 #include "Application.h"
 #include "d3dx12.h"
@@ -9,6 +12,7 @@
 #include "PMDModel.h"
 #include "PMXModel.h"
 #include "Plane.h"
+#include "Input.h"
 
 Dx12Wrapper::Dx12Wrapper(HWND hwnd):_hwnd(hwnd)
 {
@@ -159,8 +163,8 @@ bool Dx12Wrapper::Create1ResourceAndView()
 
 	heapDesc.NumDescriptors = 1;
 
-	result=_dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(_finalRtvHeap.GetAddressOf()));
-	_dev->CreateRenderTargetView(_resource.Get(), nullptr, _finalRtvHeap->GetCPUDescriptorHandleForHeapStart());
+	result=_dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(_peraRtvHeap.GetAddressOf()));
+	_dev->CreateRenderTargetView(_resource.Get(), nullptr, _peraRtvHeap->GetCPUDescriptorHandleForHeapStart());
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
@@ -171,8 +175,8 @@ bool Dx12Wrapper::Create1ResourceAndView()
 	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
-	result=_dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(_finalSrvHeap.GetAddressOf()));
-	_dev->CreateShaderResourceView(_resource.Get(), &srvDesc, _finalSrvHeap->GetCPUDescriptorHandleForHeapStart());
+	result=_dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(_peraSrvHeap.GetAddressOf()));
+	_dev->CreateShaderResourceView(_resource.Get(), &srvDesc, _peraSrvHeap->GetCPUDescriptorHandleForHeapStart());
 	return true;
 }
 
@@ -193,15 +197,15 @@ bool Dx12Wrapper::CreatePeraVertex()
 	auto result = _dev->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), D3D12_HEAP_FLAG_NONE,
 		&CD3DX12_RESOURCE_DESC::Buffer(sizeof(vertex)), D3D12_RESOURCE_STATE_GENERIC_READ,
-		nullptr, IID_PPV_ARGS(vertexBuffer.GetAddressOf()));
+		nullptr, IID_PPV_ARGS(_vertexBuffer.GetAddressOf()));
 
 	Vertex* vertMap = nullptr;
-	result = vertexBuffer->Map(0, nullptr, (void**)&vertMap);
+	result = _vertexBuffer->Map(0, nullptr, (void**)&vertMap);
 	std::copy(std::begin(vertex), std::end(vertex), vertMap);
-	vertexBuffer->Unmap(0, nullptr);
+	_vertexBuffer->Unmap(0, nullptr);
 
 	//頂点バッファビューの作成
-	_vb.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
+	_vb.BufferLocation = _vertexBuffer->GetGPUVirtualAddress();
 	_vb.StrideInBytes = sizeof(Vertex);
 	_vb.SizeInBytes = sizeof(vertex);
 	return false;
@@ -219,7 +223,7 @@ bool Dx12Wrapper::CreatePeraPipeline()
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC gpsDesc = {};
 	//ルートシグネチャと頂点レイアウト
-	gpsDesc.pRootSignature = _finalSignature.Get();
+	gpsDesc.pRootSignature = _peraSignature.Get();
 	gpsDesc.InputLayout.pInputElementDescs = inputLayoutDesc;
 	gpsDesc.InputLayout.NumElements = _countof(inputLayoutDesc);
 	//シェーダー系
@@ -258,7 +262,7 @@ bool Dx12Wrapper::CreatePeraPipeline()
 
 	gpsDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
-	auto result = _dev->CreateGraphicsPipelineState(&gpsDesc, IID_PPV_ARGS(_finalPipeline.GetAddressOf()));
+	auto result = _dev->CreateGraphicsPipelineState(&gpsDesc, IID_PPV_ARGS(_peraPipeline.GetAddressOf()));
 	if (FAILED(result))
 	{
 		return false;
@@ -335,7 +339,7 @@ bool Dx12Wrapper::CreatePeraSignature()
 	auto result = D3D12SerializeRootSignature(&rsd, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error);
 	//ルートシグネチャの生成
 	result = _dev->CreateRootSignature(0, signature->GetBufferPointer(),
-		signature->GetBufferSize(), IID_PPV_ARGS(&_finalSignature));
+		signature->GetBufferSize(), IID_PPV_ARGS(&_peraSignature));
 
 	if (FAILED(result))
 	{
@@ -360,7 +364,7 @@ bool Dx12Wrapper::CreateDepthTex()
 	desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 
-	_dev->CreateShaderResourceView(depthBuffer.Get(), &desc, _depthSrvHeap->GetCPUDescriptorHandleForHeapStart());
+	_dev->CreateShaderResourceView(_depthBuffer.Get(), &desc, _depthSrvHeap->GetCPUDescriptorHandleForHeapStart());
 
 	return false;
 }
@@ -430,6 +434,50 @@ bool Dx12Wrapper::CreateShadow()
 	return false;
 }
 
+bool Dx12Wrapper::CreateEffect()
+{
+	DXGI_FORMAT bbFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+	_efkRenderer = EffekseerRendererDX12::Create
+	(_dev.Get(),	//デバイス
+		_cmdQue.Get(),	//コマンドキュー
+		2,				//スワップチェーン数(バックバッファの数)
+		&bbFormat,		//バッファのフォーマット
+		1,				//レンダーターゲット数
+		false,			//デプス有効フラグ
+		false,			//反転デプス有効フラグ
+		2000);			//パーティクル数
+
+	_efkManager = Effekseer::Manager::Create(2000);
+	_efkManager->SetCoordinateSystem(Effekseer::CoordinateSystem::LH);
+
+	_efkManager->SetSpriteRenderer(_efkRenderer->CreateSpriteRenderer());
+	_efkManager->SetRibbonRenderer(_efkRenderer->CreateRibbonRenderer());
+	_efkManager->SetRingRenderer(_efkRenderer->CreateRingRenderer());
+	_efkManager->SetTrackRenderer(_efkRenderer->CreateTrackRenderer());
+	_efkManager->SetModelRenderer(_efkRenderer->CreateModelRenderer());
+
+	_efkManager->SetTextureLoader(_efkRenderer->CreateTextureLoader());
+	_efkManager->SetModelLoader(_efkRenderer->CreateModelLoader());
+ 
+	_efkMemoryPool = EffekseerRendererDX12::CreateSingleFrameMemoryPool(_efkRenderer.Get());
+	_efkCommandList = EffekseerRendererDX12::CreateCommandList(_efkRenderer.Get(), _efkMemoryPool.Get());
+
+	_efkRenderer->SetCommandList(_efkCommandList.Get());
+
+	auto size = Application::Instance().GetWindowSize();
+
+	_efkRenderer->SetProjectionMatrix(Effekseer::Matrix44().PerspectiveFovLH(30.0f / 180.0f * 3.14f, size.w / size.h, 1.0f, 100.0f));
+
+	_efkRenderer->SetCameraMatrix(
+		Effekseer::Matrix44().LookAtLH(Effekseer::Vector3D(0.0f, 20.0f, -30.0f),
+										Effekseer::Vector3D(target.x, target.y, target.z),
+										Effekseer::Vector3D(0.0f, 1.0f, 0.0f)));
+
+	_effect = Effekseer::Effect::Create(_efkManager.Get(), (const EFK_CHAR*)L"effect/test.efk");
+
+	return false;
+}
+
 bool Dx12Wrapper::DepthInit()
 {
 	auto wsize = Application::Instance().GetWindowSize();
@@ -453,7 +501,7 @@ bool Dx12Wrapper::DepthInit()
 		D3D12_HEAP_FLAG_NONE,
 		&resDesc,
 		D3D12_RESOURCE_STATE_DEPTH_WRITE,
-		&clearValue, IID_PPV_ARGS(depthBuffer.GetAddressOf()));
+		&clearValue, IID_PPV_ARGS(_depthBuffer.GetAddressOf()));
 
 	//デスクリプタヒープ設定
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
@@ -469,7 +517,7 @@ bool Dx12Wrapper::DepthInit()
 
 	auto h = _dsvHeap->GetCPUDescriptorHandleForHeapStart();
 
-	_dev->CreateDepthStencilView(depthBuffer.Get(), &dsvDesc, h);
+	_dev->CreateDepthStencilView(_depthBuffer.Get(), &dsvDesc, h);
 	return true;
 }
 
@@ -478,8 +526,8 @@ bool Dx12Wrapper::ConstantInit()
 	auto wsize = Application::Instance().GetWindowSize();
 
 	XMFLOAT3 eye(0, 20, -30);	//視点
-	XMFLOAT3 target(0, 10, 0);  //注視点
 	XMFLOAT3 up(0, 1, 0);		//上ベクトル
+	target = XMFLOAT3(0, 10, 0);  //注視点
 
 	//左手系、ビュー行列
 	_wvp.view = XMMatrixLookAtLH(
@@ -579,19 +627,23 @@ bool Dx12Wrapper::Init()
 	CreateDepthTex();
 	CreateShadow();
 	ConstantInit();
+	CreateEffect();
+
 	_dev->CreateFence(_fenceValue, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(_fence.GetAddressOf()));
 
-	_pmd1.reset(new PMDModel(_dev.Get(), "model/初音ミク.pmd"));
-	//_pmd2.reset(new PMDModel(_dev.Get(), "model/初音ミクmetal.pmd"));
+	//_pmd1.reset(new PMDModel(_dev.Get(), "model/初音ミク.pmd"));
+	//_pmd1.reset(new PMDModel(_dev.Get(), "model/初音ミクmetal.pmd"));
 	//_pmd2.reset(new PMDModel(_dev.Get(), "model/鏡音リン.pmd"));
 	//_pmd.reset(new PMDModel(_dev.Get(), "model/鏡音レン.pmd"));
 	//_pmd.reset(new PMDModel(_dev.Get(), "model/巡音ルカ.pmd"));
 	//_pmd.reset(new PMDModel(_dev.Get(), "model/咲音メイコ.pmd"));
 	//_pmd.reset(new PMDModel(_dev.Get(), "model/弱音ハク.pmd"));
 	//_pmd.reset(new PMDModel(_dev.Get(), "model/亞北ネル.pmd"));
-	//_pmx.reset(new PMXModel(_dev.Get(),"model/ドーラ/ドーラ.pmx"));
+	_pmx.reset(new PMXModel(_dev.Get(),"model/ドーラ/ドーラ.pmx"));
 	//_pmx.reset(new PMXModel(_dev.Get(),"model/シスタークレア/シスタークレア.pmx"));
 	_plane.reset(new Plane(_dev.Get()));
+
+	_input.reset(new Input());
 
 	auto wsize = Application::Instance().GetWindowSize();
 	//ビューポート設定
@@ -612,11 +664,22 @@ bool Dx12Wrapper::Init()
 
 void Dx12Wrapper::Update()
 {
-	_pmd1->Update();
+	_input->Update();
+	//_pmd1->Update();
 	//_pmd2->Update();
-	_wvp.world = XMMatrixRotationY(_angle);
+	CameraMove();
 	*_mapWvp = _wvp;
 
+	if (_input->GetKey()[VK_SPACE] & 0x80)
+	{
+		if (_efkManager->Exists(_efkHandle))
+		{
+			_efkManager->StopEffect(_efkHandle);
+		}
+		_efkHandle = _efkManager->Play(_effect.Get(), Effekseer::Vector3D(0, 10, 0));
+		_efkManager->SetScale(_efkHandle, 3, 3, 3);
+	}
+	
 	_cmdAllocator->Reset();//アロケータリセット
 	_cmdList->Reset(_cmdAllocator.Get(), nullptr);//コマンドリストリセット
 	float clearColor[] = { 0.5f,0.5f,0.5f,1.0f };
@@ -637,7 +700,8 @@ void Dx12Wrapper::Update()
 	//デプスステンシルビューの初期化
 	_cmdList->ClearDepthStencilView(_shadowDsvHeap->GetCPUDescriptorHandleForHeapStart(), D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 	//影の描画
-	_pmd1->ShadowDraw(_dev.Get(), _cmdList.Get(), _viewPort, _scissorRect, _wvpHeap.Get());
+	//_pmd1->ShadowDraw(_dev.Get(), _cmdList.Get(), _viewPort, _scissorRect, _wvpHeap.Get());
+	_pmx->ShadowDraw(_dev.Get(), _cmdList.Get(), _viewPort, _scissorRect, _wvpHeap.Get());
 
 	//リソースバリア(シェーダーリソースとして使う)
 	_cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(_shadowBuffer.Get(),
@@ -652,25 +716,36 @@ void Dx12Wrapper::Update()
 
 	auto dsvH = _dsvHeap->GetCPUDescriptorHandleForHeapStart();
 	//レンダーターゲット設定
-	_cmdList->OMSetRenderTargets(1, &_finalRtvHeap->GetCPUDescriptorHandleForHeapStart(), false, &dsvH);
+	_cmdList->OMSetRenderTargets(1, &_peraRtvHeap->GetCPUDescriptorHandleForHeapStart(), false, &dsvH);
 	//クリア
-	_cmdList->ClearRenderTargetView(_finalRtvHeap->GetCPUDescriptorHandleForHeapStart(), clearColor, 0, nullptr);
+	_cmdList->ClearRenderTargetView(_peraRtvHeap->GetCPUDescriptorHandleForHeapStart(), clearColor, 0, nullptr);
 	//デプスステンシルビューの初期化
 	_cmdList->ClearDepthStencilView(dsvH, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 	
 	//モデル描画
-	_pmd1->Draw(_dev.Get(), _cmdList.Get(), _viewPort, _scissorRect,_wvpHeap.Get(),_shadowSrvHeap.Get());
+	//_pmd1->Draw(_dev.Get(), _cmdList.Get(), _viewPort, _scissorRect,_wvpHeap.Get(),_shadowSrvHeap.Get());
 	//_pmd2->Draw(_dev.Get(), _cmdList.Get(), _viewPort, _scissorRect, _wvpHeap.Get(),_shadowSrvHeap.Get());
+	_pmx->Draw(_dev.Get(), _cmdList.Get(), _viewPort, _scissorRect, _wvpHeap.Get(), _shadowSrvHeap.Get());
+	//エフェクト
+	_efkManager->Update();
+	_efkMemoryPool->NewFrame();
+	EffekseerRendererDX12::BeginCommandList(_efkCommandList.Get(), _cmdList.Get());
+	_efkRenderer->BeginRendering();
+	_efkManager->Draw();
+	_efkRenderer->EndRendering();
+	EffekseerRendererDX12::EndCommandList(_efkCommandList.Get());
+	//床
 	_plane->Draw(_dev.Get(), _cmdList.Get(), _viewPort, _scissorRect, _wvpHeap.Get(), _shadowSrvHeap.Get());
+
 
 	//リソースバリア(シェーダーリソースとして使う)
 	_cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(_resource.Get(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 	
 	//パイプラインステートの設定
-	_cmdList->SetPipelineState(_finalPipeline.Get());
+	_cmdList->SetPipelineState(_peraPipeline.Get());
 	//ルートシグネチャの設定
-	_cmdList->SetGraphicsRootSignature(_finalSignature.Get());
+	_cmdList->SetGraphicsRootSignature(_peraSignature.Get());
 
 	//ビューポートの設定
 	_cmdList->RSSetViewports(1, &_viewPort);
@@ -707,9 +782,10 @@ void Dx12Wrapper::Update()
 	//トポロジの設定
 	_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
-	_cmdList->SetDescriptorHeaps(1, _finalSrvHeap.GetAddressOf());
-	_cmdList->SetGraphicsRootDescriptorTable(0, _finalSrvHeap->GetGPUDescriptorHandleForHeapStart());
+	_cmdList->SetDescriptorHeaps(1, _peraSrvHeap.GetAddressOf());
+	_cmdList->SetGraphicsRootDescriptorTable(0, _peraSrvHeap->GetGPUDescriptorHandleForHeapStart());
 
+	
 	_cmdList->DrawInstanced(4, 1, 0, 0);
 
 	_cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(_renderTargets[bbIndex].Get(),
@@ -739,5 +815,54 @@ void Dx12Wrapper::WaitFence()
 		WaitForSingleObject(event, INFINITE);
 		CloseHandle(event);
 	}
+}
+
+void Dx12Wrapper::CameraMove()
+{
+	XMFLOAT3 up(0, 1, 0);		//上ベクトル
+	float speed = 0.05f;
+
+	if (_input->GetKey()['W'] & 0x80)
+	{
+		_wvp.eye = XMFLOAT3(_wvp.eye.x, _wvp.eye.y += speed, _wvp.eye.z);
+		target = XMFLOAT3(target.x, target.y += speed, target.z);
+	}
+	if (_input->GetKey()['A'] & 0x80)
+	{
+		_wvp.eye = XMFLOAT3(_wvp.eye.x -= speed, _wvp.eye.y, _wvp.eye.z);
+		target = XMFLOAT3(target.x -= speed, target.y, target.z);
+	}
+	if (_input->GetKey()['S'] & 0x80)
+	{
+		_wvp.eye = XMFLOAT3(_wvp.eye.x, _wvp.eye.y -= speed, _wvp.eye.z);
+		target = XMFLOAT3(target.x, target.y -= speed, target.z);
+	}
+	if (_input->GetKey()['D'] & 0x80)
+	{
+		_wvp.eye = XMFLOAT3(_wvp.eye.x += speed, _wvp.eye.y, _wvp.eye.z);
+		target = XMFLOAT3(target.x += speed, target.y, target.z);
+	}
+	if (_input->GetKey()[VK_UP] & 0x80)
+	{
+		_wvp.eye = XMFLOAT3(_wvp.eye.x, _wvp.eye.y, _wvp.eye.z += speed);
+		target = XMFLOAT3(target.x, target.y, target.z += speed);
+	}
+	if (_input->GetKey()[VK_DOWN] & 0x80)
+	{
+		_wvp.eye = XMFLOAT3(_wvp.eye.x, _wvp.eye.y, _wvp.eye.z -= speed);
+		target = XMFLOAT3(target.x, target.y, target.z -= speed);
+	}
+	if (_input->GetKey()[VK_LEFT] & 0x80)
+	{
+		_wvp.world *= XMMatrixRotationY(-0.01f);
+	}
+	if (_input->GetKey()[VK_RIGHT] & 0x80)
+	{
+		_wvp.world *= XMMatrixRotationY(0.01f);
+	}
+	_wvp.view = XMMatrixLookAtLH(
+		XMLoadFloat3(&_wvp.eye),
+		XMLoadFloat3(&target),
+		XMLoadFloat3(&up));
 }
 

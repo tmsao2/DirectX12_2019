@@ -7,6 +7,8 @@
 #include <map>
 #include <memory>
 #include <wrl.h>
+#include <Effekseer.h>
+#include <EffekseerRendererDX12.h>
 
 using namespace DirectX;
 using namespace Microsoft::WRL;
@@ -14,6 +16,7 @@ using namespace Microsoft::WRL;
 class PMXModel;
 class PMDModel;
 class Plane;
+class Input;
 
 struct Vertex {
 	XMFLOAT3 pos;//座標
@@ -27,6 +30,7 @@ struct WVPMatrix {
 	XMMATRIX lvp;
 	XMFLOAT3 eye;
 };
+
 
 
 class Dx12Wrapper
@@ -55,19 +59,19 @@ private:
 	ComPtr<ID3D12DescriptorHeap> _boneHeap;		//ボーン用
 
 	//マルチパス用
-	ComPtr<ID3D12DescriptorHeap> _finalRtvHeap;
-	ComPtr<ID3D12DescriptorHeap> _finalSrvHeap;
-	ComPtr<ID3D12Resource> _resource;
-	ComPtr<ID3D12RootSignature> _finalSignature;
-	ComPtr<ID3D12PipelineState> _finalPipeline;
-	D3D12_VERTEX_BUFFER_VIEW _vb;
-	ComPtr<ID3D12Resource> vertexBuffer = nullptr;
+	ComPtr<ID3D12DescriptorHeap>	_peraRtvHeap;
+	ComPtr<ID3D12DescriptorHeap>	_peraSrvHeap;
+	ComPtr<ID3D12Resource>			_resource;
+	ComPtr<ID3D12RootSignature>		_peraSignature;
+	ComPtr<ID3D12PipelineState>		_peraPipeline;
+	D3D12_VERTEX_BUFFER_VIEW		_vb;
+	ComPtr<ID3D12Resource> _vertexBuffer = nullptr;
 	//深度バッファー作成
-	ComPtr<ID3D12Resource> depthBuffer = nullptr;
+	ComPtr<ID3D12Resource> _depthBuffer = nullptr;
 
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _shadowDsvHeap;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _shadowSrvHeap;
-	Microsoft::WRL::ComPtr<ID3D12Resource> _shadowBuffer;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>	_shadowDsvHeap;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>	_shadowSrvHeap;
+	Microsoft::WRL::ComPtr<ID3D12Resource>			_shadowBuffer;
 	
 	//シェーダー
 	ComPtr<ID3DBlob> _peraVsShader = nullptr;
@@ -81,12 +85,21 @@ private:
 	WVPMatrix _wvp;
 	WVPMatrix* _mapWvp;
 
-	std::shared_ptr<PMDModel> _pmd1;
-	std::shared_ptr<PMDModel> _pmd2;
-	std::shared_ptr<PMXModel> _pmx;
-	std::shared_ptr<Plane> _plane;
+	std::shared_ptr<PMDModel>	_pmd1;
+	std::shared_ptr<PMDModel>	_pmd2;
+	std::shared_ptr<PMXModel>	_pmx;
+	std::shared_ptr<Plane>		_plane; 
+	std::shared_ptr<Input>		_input;
+
+	Microsoft::WRL::ComPtr<EffekseerRenderer::Renderer>					_efkRenderer;
+	Microsoft::WRL::ComPtr<Effekseer::Manager>							_efkManager;
+	Microsoft::WRL::ComPtr<EffekseerRenderer::SingleFrameMemoryPool>	_efkMemoryPool;
+	Microsoft::WRL::ComPtr<EffekseerRenderer::CommandList>				_efkCommandList;
+	Microsoft::WRL::ComPtr<Effekseer::Effect>							_effect;
+	Effekseer::Handle													_efkHandle;
 
 	float _angle = 0;
+	XMFLOAT3 target;
 
 	bool DeviceInit();
 	bool CommandInit();
@@ -101,10 +114,11 @@ private:
 	bool CreatePeraSignature();
 	bool CreateDepthTex();
 	bool CreateShadow();
+	bool CreateEffect();
 
 	void ExecuteCommand();
 	void WaitFence();
-	
+	void CameraMove();
 public:
 	Dx12Wrapper(HWND hwnd);
 	~Dx12Wrapper();

@@ -28,10 +28,9 @@ struct PMXVertex
 
 struct PMXMaterial
 {
-	std::string materialName;		//マテリアル名
 	DirectX::XMFLOAT4 diffuse;		//拡散色
-	DirectX::XMFLOAT3 specular;		//反射色
 	float power;					//spcular係数
+	DirectX::XMFLOAT3 specular;		//反射色
 	DirectX::XMFLOAT3 ambient;		//環境色
 	unsigned char bitflag;			//描画フラグ(8bit) - 各bit 0:OFF 1:ON　0x01:両面描画, 0x02:地面影, 0x04:セルフシャドウマップへの描画, 0x08:セルフシャドウの描画, 0x10:エッジ描画
 	DirectX::XMFLOAT4 edgeColor;	//エッジ色
@@ -43,6 +42,7 @@ struct PMXMaterial
 	int toonTex;
 	std::string memo;				//メモ : 自由欄／スクリプト記述／エフェクトへのパラメータ配置など
 	int vertexNum;					//マテリアルに対応する面(頂点)数
+	std::string materialName;		//マテリアル名
 };
 
 struct IK_Link
@@ -117,12 +117,15 @@ private:
 	bool IndexBufferInit(Microsoft::WRL::ComPtr<ID3D12Device> dev);
 	bool MaterialInit(Microsoft::WRL::ComPtr<ID3D12Device> dev);
 	bool BoneInit(Microsoft::WRL::ComPtr<ID3D12Device> dev);
+	bool InitPipeLine(Microsoft::WRL::ComPtr<ID3D12Device> dev);
 
 	std::string WideToMultiByte(const std::wstring wstr);
 public:
 	PMXModel(Microsoft::WRL::ComPtr<ID3D12Device> dev,const char* path);
 	~PMXModel();
-	PMXModelData GetModel();
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> MaterialHeap()const;
+
+	void Update();
+	void ShadowDraw(ID3D12Device* dev, ID3D12GraphicsCommandList* cmd, D3D12_VIEWPORT& view, D3D12_RECT& rect, ID3D12DescriptorHeap* wvp);
+	void Draw(ID3D12Device* dev, ID3D12GraphicsCommandList* cmd, D3D12_VIEWPORT& view, D3D12_RECT& rect, ID3D12DescriptorHeap* wvp, ID3D12DescriptorHeap* shadow);
 };
 

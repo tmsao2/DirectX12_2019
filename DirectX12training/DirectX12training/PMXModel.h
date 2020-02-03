@@ -18,6 +18,7 @@ struct PMXVertex
 	DirectX::XMFLOAT3 normal;	//法線
 	DirectX::XMFLOAT2 uv;		//UV
 	std::vector<DirectX::XMFLOAT4> uva;	//追加UV
+	unsigned char wdm;
 	int bone[4];		//ボーンの参照インデックス
 	float weight[4];	//ボーンのウエイト
 	DirectX::XMFLOAT3 sdef_c;	//SDEF-C 値
@@ -64,7 +65,7 @@ struct IK_Info
 
 struct PMXBone
 {
-	std::wstring boneName;				//ボーン名
+	std::string boneName;				//ボーン名
 	DirectX::XMFLOAT3 pos;				//位置
 	int index;							//親のボーンindex
 	int transLevel;						//変形階層
@@ -125,7 +126,8 @@ public:
 	~PMXModel();
 
 	void Update();
-	void ShadowDraw(ID3D12Device* dev, ID3D12GraphicsCommandList* cmd, D3D12_VIEWPORT& view, D3D12_RECT& rect, ID3D12DescriptorHeap* wvp);
-	void Draw(ID3D12Device* dev, ID3D12GraphicsCommandList* cmd, D3D12_VIEWPORT& view, D3D12_RECT& rect, ID3D12DescriptorHeap* wvp, ID3D12DescriptorHeap* shadow);
+	void ShadowDraw(ID3D12Device* dev, ID3D12GraphicsCommandList* cmd, D3D12_VIEWPORT& view, D3D12_RECT& rect, ID3D12DescriptorHeap* wvp, int instNum);
+	void Draw(ID3D12Device* dev, ID3D12GraphicsCommandList* cmd, D3D12_VIEWPORT& view, D3D12_RECT& rect,
+		ID3D12DescriptorHeap* wvp, ID3D12DescriptorHeap* shadow,int instNum);
 };
 

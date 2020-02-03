@@ -26,8 +26,11 @@ bool Model::CreatePipeLine(Microsoft::WRL::ComPtr<ID3D12Device> dev, std::vector
 	gpsDesc.VS = CD3DX12_SHADER_BYTECODE(_vsShader.Get());
 	gpsDesc.PS = CD3DX12_SHADER_BYTECODE(_psShader.Get());
 	//レンダーターゲット
-	gpsDesc.NumRenderTargets = 1;
+	gpsDesc.NumRenderTargets = 3;
 	gpsDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	gpsDesc.RTVFormats[1] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	gpsDesc.RTVFormats[2] = DXGI_FORMAT_R8G8B8A8_UNORM;
+
 	//深度ステンシル
 	gpsDesc.DepthStencilState.DepthEnable = true;
 	gpsDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
@@ -82,12 +85,12 @@ bool Model::CreatePipeLine(Microsoft::WRL::ComPtr<ID3D12Device> dev, std::vector
 	{
 		return false;
 	}
+	//影
 	gpsDesc.pRootSignature = _shadowSignature.Get();
 	gpsDesc.VS = CD3DX12_SHADER_BYTECODE(_shadowVS.Get());
 	gpsDesc.PS = CD3DX12_SHADER_BYTECODE(_shadowPS.Get());
 
 	result = dev->CreateGraphicsPipelineState(&gpsDesc, IID_PPV_ARGS(_shadowPipeline.GetAddressOf()));
-
 	return true;
 }
 
@@ -187,8 +190,9 @@ bool Model::CreateRootSignature(Microsoft::WRL::ComPtr<ID3D12Device> dev)
 		return false;
 	}
 
+	/////////////////////////////////影//////////////////////////////////////////////
 	//ルートパラメーターの設定
-	D3D12_ROOT_PARAMETER shadowParam[3] = {};
+	D3D12_ROOT_PARAMETER shadowParam[2] = {};
 	shadowParam[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	shadowParam[0].DescriptorTable.NumDescriptorRanges = 1;
 	shadowParam[0].DescriptorTable.pDescriptorRanges = &range[0];

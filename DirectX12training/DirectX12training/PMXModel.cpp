@@ -45,8 +45,10 @@ void PMXModel::LoadModel(const char * path)
 	int vertexNum;
 	fread(&vertexNum, sizeof(vertexNum), 1, fp);
 	_model.vertices.resize(vertexNum);
+	int cnt = 0;
 	for (auto& vertex : _model.vertices)
 	{
+		cnt++;
 		fread(&vertex.pos, sizeof(vertex.pos), 1, fp);
 		fread(&vertex.normal, sizeof(vertex.normal), 1, fp);
 		fread(&vertex.uv, sizeof(vertex.uv), 1, fp);
@@ -55,24 +57,31 @@ void PMXModel::LoadModel(const char * path)
 		{
 			fread(&add, sizeof(add), 1, fp);
 		}
-		unsigned char wdm;
-		fread(&wdm, sizeof(wdm), 1, fp);
-		switch (wdm)
+		fread(&vertex.wdm, sizeof(vertex.wdm), 1, fp);
+		switch (vertex.wdm)
 		{
 		case 0:
 			fread(&vertex.bone, header.data[5], 1, fp);
 			break;
 		case 1:
-
-			fread(&vertex.bone, header.data[5], 2, fp);
+			for (int i = 0; i < 2; ++i)
+			{
+				fread(&vertex.bone[i], header.data[5], 1, fp);
+			}
 			fread(&vertex.weight, sizeof(vertex.weight[0]), 1, fp);
 			break;
 		case 2:
-
-			fread(&vertex.bone, header.data[5], _countof(vertex.bone), fp);
-			fread(&vertex.weight, sizeof(vertex.weight[0]), _countof(vertex.weight), fp);
+			for (int i = 0; i < _countof(vertex.bone); ++i)
+			{
+				fread(&vertex.bone[i], header.data[5], 1, fp);
+			}
+			fread(&vertex.weight, sizeof(vertex.weight[0]), 4, fp);
+			break;
 		case 3:
-			fread(&vertex.bone, header.data[5], 2, fp);
+			for (int i = 0; i < 2; ++i)
+			{
+				fread(&vertex.bone[i], header.data[5], 1, fp);
+			}
 			fread(&vertex.weight, sizeof(vertex.weight[0]), 1, fp);
 			fread(&vertex.sdef_c, sizeof(vertex.sdef_c), 1, fp);
 			fread(&vertex.sdef_r0, sizeof(vertex.sdef_r0), 1, fp);
@@ -100,12 +109,14 @@ void PMXModel::LoadModel(const char * path)
 	for (auto& h : _model.handle)
 	{
 		fread(&length, sizeof(length), 1, fp);
+		std::wstring wstr;
 		for (int i = 0; i < length / 2; ++i)
 		{
-			wchar_t str;
-			fread(&str, sizeof(str), 1, fp);
-			h += str;
+			wchar_t wc;
+			fread(&wc, sizeof(wc), 1, fp);
+			wstr += wc;
 		}
+		h = WideToMultiByte(wstr);
 	}
 
 	//マテリアル
@@ -115,19 +126,17 @@ void PMXModel::LoadModel(const char * path)
 	for (auto& mat : _model.materials)
 	{
 		fread(&length, sizeof(length), 1, fp);
+		std::wstring wstr;
 		for (int i = 0; i < length / 2; ++i)
 		{
-			wchar_t str;
-			fread(&str, sizeof(str), 1, fp);
-			mat.materialName += str;
+			wchar_t wc;
+			fread(&wc, sizeof(wc), 1, fp);
+			wstr += wc;
 		}
+		mat.materialName = WideToMultiByte(wstr);
 		fread(&length, sizeof(length), 1, fp);
-		for (int i = 0; i < length / 2; ++i)
-		{
-			wchar_t str;
-			fread(&str, sizeof(str), 1, fp);
-			mat.materialName += str;
-		}
+		fseek(fp, length, SEEK_CUR);
+
 		fread(&mat.diffuse, sizeof(mat.diffuse), 1, fp);
 		fread(&mat.specular, sizeof(mat.specular), 1, fp);
 		fread(&mat.power, sizeof(mat.power), 1, fp);
@@ -164,12 +173,14 @@ void PMXModel::LoadModel(const char * path)
 	for (auto& bone : _model.bones)
 	{
 		fread(&length, sizeof(length), 1, fp);
+		std::wstring wstr;
 		for (int i = 0; i < length / 2; ++i)
 		{
-			wchar_t str;
-			fread(&str, sizeof(str), 1, fp);
-			bone.boneName += str;
+			wchar_t wc;
+			fread(&wc, sizeof(wc), 1, fp);
+			wstr += wc;
 		}
+		bone.boneName = WideToMultiByte(wstr);
 		fread(&length, sizeof(length), 1, fp);
 		fseek(fp, length, SEEK_CUR);
 		
@@ -397,14 +408,8 @@ bool PMXModel::MaterialInit(Microsoft::WRL::ComPtr<ID3D12Device> dev)
 
 		PMXMaterial* matMap = nullptr;
 		result = matBuff->Map(0, nullptr, (void**)&matMap);
-		if (midx == 20|| midx == 21|| midx == 17)
-		{
-			mats[midx].diffuse.w = 0;
-		}
-		else
-		{
-			*matMap = mats[midx];
-		}
+
+		*matMap = mats[midx];
 		
 		++midx;
 	}
@@ -464,8 +469,7 @@ bool PMXModel::BoneInit(Microsoft::WRL::ComPtr<ID3D12Device> dev)
 	for (int idx = 0; idx < _model.bones.size(); ++idx)
 	{
 		auto& b = _model.bones[idx];
-		auto str = WideToMultiByte(b.boneName);
-		auto& boneNode = _boneMap[str];
+		auto& boneNode = _boneMap[b.boneName];
 		boneNode.boneIdx = idx;
 		boneNode.startPos = b.pos;
 		if (b.linkPoint && b.linkPoint_Index < 65535)
@@ -481,7 +485,7 @@ bool PMXModel::BoneInit(Microsoft::WRL::ComPtr<ID3D12Device> dev)
 	for (auto& b : _boneMap)
 	{
 		if (_model.bones[b.second.boneIdx].index >= _model.bones.size())continue;
-		auto parentName = WideToMultiByte(_model.bones[_model.bones[b.second.boneIdx].index].boneName);
+		auto parentName = _model.bones[_model.bones[b.second.boneIdx].index].boneName;
 		_boneMap[parentName].children.push_back(&b.second);
 	}
 
@@ -538,9 +542,21 @@ bool PMXModel::InitPipeLine(Microsoft::WRL::ComPtr<ID3D12Device> dev)
 		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
 		{"TEXCOORD",0,DXGI_FORMAT_R32G32_FLOAT,0,D3D12_APPEND_ALIGNED_ELEMENT,
 		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
-		{"BONENO",0,DXGI_FORMAT_R16G16_UINT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		{"ADDUV1",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,D3D12_APPEND_ALIGNED_ELEMENT,
 		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
-		{"WEIGHT",0,DXGI_FORMAT_R8_UINT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		{"ADDUV2",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
+		{"ADDUV3",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
+		{"ADDUV4",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
+		{"BONESTATE",0,DXGI_FORMAT_R8_UINT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
+		{"BONENO",0,DXGI_FORMAT_R32G32B32A32_UINT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
+		{"WEIGHT",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,D3D12_APPEND_ALIGNED_ELEMENT,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
+		{"SV_InstanceID",0,DXGI_FORMAT_R8_UINT,0,D3D12_APPEND_ALIGNED_ELEMENT,
 		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
 	};
 
@@ -567,7 +583,7 @@ void PMXModel::Update()
 	UpdateMotion(static_cast<float>(GetTickCount() - lastTime) / 33.33333f);
 }
 
-void PMXModel::ShadowDraw(ID3D12Device * dev, ID3D12GraphicsCommandList * cmd, D3D12_VIEWPORT & view, D3D12_RECT & rect, ID3D12DescriptorHeap * wvp)
+void PMXModel::ShadowDraw(ID3D12Device * dev, ID3D12GraphicsCommandList * cmd, D3D12_VIEWPORT & view, D3D12_RECT & rect, ID3D12DescriptorHeap * wvp, int instNum)
 {
 	//パイプラインステートの設定
 	cmd->SetPipelineState(_shadowPipeline.Get());
@@ -592,10 +608,11 @@ void PMXModel::ShadowDraw(ID3D12Device * dev, ID3D12GraphicsCommandList * cmd, D
 	cmd->SetDescriptorHeaps(1, _boneHeap.GetAddressOf());
 	cmd->SetGraphicsRootDescriptorTable(2, boneH);
 
-	cmd->DrawIndexedInstanced(_model.indices.size(), 1, 0, 0, 0);
+	cmd->DrawIndexedInstanced(_model.indices.size(), instNum, 0, 0, 0);
 }
 
-void PMXModel::Draw(ID3D12Device * dev, ID3D12GraphicsCommandList * cmd, D3D12_VIEWPORT & view, D3D12_RECT & rect, ID3D12DescriptorHeap * wvp, ID3D12DescriptorHeap * shadow)
+void PMXModel::Draw(ID3D12Device * dev, ID3D12GraphicsCommandList * cmd, D3D12_VIEWPORT & view, D3D12_RECT & rect,
+	ID3D12DescriptorHeap * wvp, ID3D12DescriptorHeap * shadow, int instNum)
 {
 	_model.materials;
 	//パイプラインステートの設定
@@ -623,7 +640,6 @@ void PMXModel::Draw(ID3D12Device * dev, ID3D12GraphicsCommandList * cmd, D3D12_V
 	//影
 	cmd->SetDescriptorHeaps(1, &shadow);
 	cmd->SetGraphicsRootDescriptorTable(3, shadow->GetGPUDescriptorHandleForHeapStart());
-
 	//マテリアル
 	auto matH = _materialHeap->GetGPUDescriptorHandleForHeapStart();
 	cmd->SetDescriptorHeaps(1, _materialHeap.GetAddressOf());
@@ -632,7 +648,7 @@ void PMXModel::Draw(ID3D12Device * dev, ID3D12GraphicsCommandList * cmd, D3D12_V
 	for (auto& m : _model.materials)
 	{
 		cmd->SetGraphicsRootDescriptorTable(1, matH);
-		cmd->DrawIndexedInstanced(m.vertexNum, 1, offset, 0, 0);
+		cmd->DrawIndexedInstanced(m.vertexNum, instNum, offset, 0, 0);
 		matH.ptr += dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * 5;
 		offset += m.vertexNum;
 	}

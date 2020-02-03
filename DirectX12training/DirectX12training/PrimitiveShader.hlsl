@@ -9,6 +9,7 @@ cbuffer mat : register(b0)
     float4x4 projection;
     float4x4 lvp;
     float3 eye;
+    float3 light;
 };
 
 struct Output
@@ -32,8 +33,15 @@ Output PrimitiveVS(float4 pos : POSITION, float4 normal : NORMAL,float2 uv : TEX
     return o;
 }
 
-float4 PrimitivePS(Output o) : SV_Target
+struct PixelOut
 {
+    float4 color : SV_Target0;
+    float4 normal : SV_Target1;
+};
+
+PixelOut PrimitivePS(Output o)
+{
+    PixelOut po;
     float4 color=float4(1, 1, 1, 1);
     float4 tpos = mul(lvp, o.pos);
     float2 uv = (float2(1, -1) + tpos.xy) * float2(0.5, -0.5);
@@ -42,5 +50,8 @@ float4 PrimitivePS(Output o) : SV_Target
     {
         color.rgb *= 0.5f;
     }
-    return color;
+    
+    po.color = color;
+    po.normal = o.normal;
+    return po;
 }

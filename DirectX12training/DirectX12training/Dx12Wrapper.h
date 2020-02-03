@@ -6,6 +6,7 @@
 #include <vector>
 #include <map>
 #include <memory>
+#include <array>
 #include <wrl.h>
 #include <Effekseer.h>
 #include <EffekseerRendererDX12.h>
@@ -28,9 +29,22 @@ struct WVPMatrix {
 	XMMATRIX view;
 	XMMATRIX projection;
 	XMMATRIX lvp;
-	XMFLOAT3 eye;
+	XMVECTOR eye;
+	XMVECTOR light;
 };
 
+struct GUIStatus
+{
+	unsigned int debug;
+	unsigned int cameraOutLine;
+	unsigned int normalOutLine;
+	unsigned int bloomFlag;
+	unsigned int dofFlag;
+	float time;
+	XMVECTOR color1;
+	XMVECTOR color2;
+	XMVECTOR color3;
+};
 
 
 class Dx12Wrapper
@@ -54,14 +68,16 @@ private:
 	//デスクリプタを格納する領域
 	ComPtr<ID3D12DescriptorHeap> _rtvHeap;		//レンダーターゲットビュー用
 	ComPtr<ID3D12DescriptorHeap> _dsvHeap;		//深度ステンシルビュー用
-	ComPtr<ID3D12DescriptorHeap> _depthSrvHeap;
-	ComPtr<ID3D12DescriptorHeap> _wvpHeap;		//定数バッファビュー用
+	ComPtr<ID3D12DescriptorHeap> _depthSrvHeap;	//カメラ深度描画用
+	ComPtr<ID3D12DescriptorHeap> _wvpHeap;		//カメラ用
 	ComPtr<ID3D12DescriptorHeap> _boneHeap;		//ボーン用
+	ComPtr<ID3D12DescriptorHeap> _imguiHeap;	//IMGUI用
+	ComPtr<ID3D12DescriptorHeap> _statusHeap;	//GUIステータス用
 
 	//マルチパス用
 	ComPtr<ID3D12DescriptorHeap>	_peraRtvHeap;
 	ComPtr<ID3D12DescriptorHeap>	_peraSrvHeap;
-	ComPtr<ID3D12Resource>			_resource;
+	std::array<ComPtr<ID3D12Resource>,3>	_resources;
 	ComPtr<ID3D12RootSignature>		_peraSignature;
 	ComPtr<ID3D12PipelineState>		_peraPipeline;
 	D3D12_VERTEX_BUFFER_VIEW		_vb;
@@ -69,9 +85,15 @@ private:
 	//深度バッファー作成
 	ComPtr<ID3D12Resource> _depthBuffer = nullptr;
 
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>	_shadowDsvHeap;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>	_shadowSrvHeap;
-	Microsoft::WRL::ComPtr<ID3D12Resource>			_shadowBuffer;
+	//影
+	ComPtr<ID3D12DescriptorHeap>	_shadowDsvHeap;
+	ComPtr<ID3D12DescriptorHeap>	_shadowSrvHeap;
+	ComPtr<ID3D12Resource>			_shadowBuffer;
+	//ブルーム,被写界深度
+	ComPtr<ID3D12DescriptorHeap>	_shrinkRtvHeap;
+	ComPtr<ID3D12DescriptorHeap>	_shrinkSrvHeap;
+	std::array<ComPtr<ID3D12Resource>, 2>	_shrinkBuffer;
+	ComPtr<ID3D12PipelineState>		_shrinkPipeline;
 	
 	//シェーダー
 	ComPtr<ID3DBlob> _peraVsShader = nullptr;
@@ -98,7 +120,14 @@ private:
 	Microsoft::WRL::ComPtr<Effekseer::Effect>							_effect;
 	Effekseer::Handle													_efkHandle;
 
+	GUIStatus _status;
+	GUIStatus* _mapStatus;
 	float _angle = 0;
+	float _oldangle = 0;
+	int _instanceNum = 1;
+	float col1[3] = { 0,0,0 };
+	float col2[3] = { 0,0,0 };
+	float col3[3] = { 0,0,0 };
 	XMFLOAT3 target;
 
 	bool DeviceInit();
@@ -106,23 +135,28 @@ private:
 	bool SwapChainInit();
 	bool RTInit();
 	bool DepthInit();
-	bool ConstantInit();
-	bool Create1ResourceAndView();
-	bool Create2ResourceAndView();
+	bool CameraInit();
+	bool StatusInit();
+	bool CreateResourceAndView();
 	bool CreatePeraVertex();
 	bool CreatePeraPipeline();
 	bool CreatePeraSignature();
 	bool CreateDepthTex();
 	bool CreateShadow();
+	bool CreateBloom();
 	bool CreateEffect();
 
 	void ExecuteCommand();
 	void WaitFence();
 	void CameraMove();
+	void ChangeColor();
+	void LightMove();
+	void DrawShrink();
 public:
 	Dx12Wrapper(HWND hwnd);
 	~Dx12Wrapper();
 	bool Init();
+	void InitImgui(HWND hwnd);
 	void Update();
 };
 

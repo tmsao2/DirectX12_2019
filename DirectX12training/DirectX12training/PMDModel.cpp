@@ -335,6 +335,7 @@ bool PMDModel::InitPipeLine(Microsoft::WRL::ComPtr<ID3D12Device> dev)
 		D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &_shadowVS, nullptr);
 	result = D3DCompileFromFile(L"Shadow.hlsl", nullptr, nullptr, "ShadowPS", "ps_5_0",
 		D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &_shadowPS, nullptr);
+	
 	//レイアウト作成
 	std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayoutDesc = {
 		{"POSITION",0,DXGI_FORMAT_R32G32B32_FLOAT,0,D3D12_APPEND_ALIGNED_ELEMENT,
@@ -363,7 +364,7 @@ void PMDModel::Update()
 	UpdateMotion(static_cast<float>(GetTickCount() - lastTime) / 33.33333f);
 }
 
-void PMDModel::ShadowDraw(ID3D12Device * dev, ID3D12GraphicsCommandList * cmd, D3D12_VIEWPORT & view, D3D12_RECT & rect, ID3D12DescriptorHeap * wvp)
+void PMDModel::ShadowDraw(ID3D12Device * dev, ID3D12GraphicsCommandList * cmd, D3D12_VIEWPORT & view, D3D12_RECT & rect, ID3D12DescriptorHeap * wvp, int instNum)
 {
 	//パイプラインステートの設定
 	cmd->SetPipelineState(_shadowPipeline.Get());
@@ -387,13 +388,14 @@ void PMDModel::ShadowDraw(ID3D12Device * dev, ID3D12GraphicsCommandList * cmd, D
 	auto boneH = _boneHeap->GetGPUDescriptorHandleForHeapStart();
 	cmd->SetDescriptorHeaps(1, _boneHeap.GetAddressOf());
 	cmd->SetGraphicsRootDescriptorTable(2, boneH);
-	
-	cmd->DrawIndexedInstanced(_model.indices.size(), 1, 0, 0, 0);
-	
+
+	cmd->DrawIndexedInstanced(_model.indices.size(), instNum, 0, 0, 0);
 }
 
-void PMDModel::Draw(ID3D12Device* dev, ID3D12GraphicsCommandList* cmd, D3D12_VIEWPORT& view, D3D12_RECT& rect, ID3D12DescriptorHeap* wvp, ID3D12DescriptorHeap* shadow)
+void PMDModel::Draw(ID3D12Device * dev, ID3D12GraphicsCommandList * cmd, D3D12_VIEWPORT & view, D3D12_RECT & rect,
+	ID3D12DescriptorHeap * wvp, ID3D12DescriptorHeap * shadow, int instNum)
 {
+	_model.materials;
 	//パイプラインステートの設定
 	cmd->SetPipelineState(_pipelineState.Get());
 	//ルートシグネチャの設定
@@ -419,7 +421,6 @@ void PMDModel::Draw(ID3D12Device* dev, ID3D12GraphicsCommandList* cmd, D3D12_VIE
 	//影
 	cmd->SetDescriptorHeaps(1, &shadow);
 	cmd->SetGraphicsRootDescriptorTable(3, shadow->GetGPUDescriptorHandleForHeapStart());
-
 	//マテリアル
 	auto matH = _materialHeap->GetGPUDescriptorHandleForHeapStart();
 	cmd->SetDescriptorHeaps(1, _materialHeap.GetAddressOf());
@@ -428,9 +429,8 @@ void PMDModel::Draw(ID3D12Device* dev, ID3D12GraphicsCommandList* cmd, D3D12_VIE
 	for (auto& m : _model.materials)
 	{
 		cmd->SetGraphicsRootDescriptorTable(1, matH);
-		cmd->DrawIndexedInstanced(m.face_vert_cnt, 1, offset, 0, 0);
+		cmd->DrawIndexedInstanced(m.face_vert_cnt, instNum, offset, 0, 0);
 		matH.ptr += dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * 5;
 		offset += m.face_vert_cnt;
 	}
 }
-

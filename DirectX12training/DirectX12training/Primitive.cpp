@@ -20,8 +20,9 @@ bool Primitive::CreatePipeLine(Microsoft::WRL::ComPtr<ID3D12Device> dev, std::ve
 	gpsDesc.VS = CD3DX12_SHADER_BYTECODE(_vsShader.Get());
 	gpsDesc.PS = CD3DX12_SHADER_BYTECODE(_psShader.Get());
 	//レンダーターゲット
-	gpsDesc.NumRenderTargets = 1;
+	gpsDesc.NumRenderTargets = 2;
 	gpsDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	gpsDesc.RTVFormats[1] = DXGI_FORMAT_R8G8B8A8_UNORM;
 	//深度ステンシル
 	gpsDesc.DepthStencilState.DepthEnable = true;
 	gpsDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;

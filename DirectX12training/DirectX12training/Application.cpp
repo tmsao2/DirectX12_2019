@@ -1,9 +1,13 @@
 #include "Application.h"
 #include "Dx12Wrapper.h"
 #include <iostream>
+#include "imgui/imgui.h"
+#include "imgui/imgui_impl_win32.h"
 
 constexpr int WINDOW_WIDTH = 1280;
 constexpr int WINDOW_HEIGHT = 720;
+
+extern IMGUI_IMPL_API LRESULT  ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 LRESULT WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam,LPARAM lparam)
 {
@@ -12,6 +16,7 @@ LRESULT WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam,LPARAM lparam)
 		PostQuitMessage(0);//OSに対してアプリが終了することを伝える
 		return 0;
 	}
+	ImGui_ImplWin32_WndProcHandler(hwnd, msg, wparam, lparam);
 	return DefWindowProc(hwnd, msg, wparam, lparam);//規定の処理を行う
 }
 
@@ -31,7 +36,7 @@ bool Application::InitWindow()
 	RECT wrc = { 0,0,WINDOW_WIDTH,WINDOW_HEIGHT };
 	AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);
 
-	_hwnd = CreateWindow(_wndClass.lpszClassName, "DirectX12演習",
+	_hwnd = CreateWindow(_wndClass.lpszClassName, "1701377_高須真樹",
 		WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
 		wrc.right - wrc.left, wrc.bottom - wrc.top,
 		nullptr, nullptr, _wndClass.hInstance, nullptr);
@@ -62,6 +67,7 @@ bool Application::Init()
 	InitWindow();
 	_dx12 = std::make_shared<Dx12Wrapper>(_hwnd);
 	_dx12->Init();
+	_dx12->InitImgui(_hwnd);
 	return true;
 }
 

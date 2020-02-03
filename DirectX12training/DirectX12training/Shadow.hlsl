@@ -1,4 +1,3 @@
-SamplerState smp : register(s0);
 
 cbuffer mat : register(b0)
 {
@@ -7,6 +6,7 @@ cbuffer mat : register(b0)
     float4x4 projection;
     float4x4 lvp;
     float3 eye;
+    float3 light;
 };
 
 cbuffer bones : register(b2)
@@ -22,15 +22,18 @@ struct Out
     float2 uv : TEXCOORD;
     min16uint2 boneno : BONENO;
     min16uint weight : WEIGHT;
+    uint instance : SV_InstanceID;
 };
 
 //頂点シェーダ
-Out ShadowVS(float4 pos : POSITION, float4 normal : NORMAL, float2 uv : TEXCOORD, min16uint2 boneno : BONENO, min16uint weight : WEIGHT)
+Out ShadowVS(float4 pos : POSITION, float4 normal : NORMAL, float2 uv : TEXCOORD, min16uint2 boneno : BONENO, min16uint weight : WEIGHT, uint instance : SV_InstanceID)
 {
     Out o;
 
     float w = weight / 100.f;
     matrix m = boneMats[boneno.x] * w + boneMats[boneno.y] * (1 - w);
+    m._m03 += (instance % 5) * 10;
+    m._m23 += (instance / 5) * 10;
     pos = mul(m, pos);
     
     float4 wPos = mul(world, pos);

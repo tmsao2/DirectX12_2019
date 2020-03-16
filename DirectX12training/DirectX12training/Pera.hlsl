@@ -20,6 +20,7 @@ cbuffer status : register(b0)
     uint normalOutLine;
     uint bloomFlag;
     uint dofFlag;
+    uint rayMarch;
     float time;
     float3 col1;
     float3 col2;
@@ -255,8 +256,8 @@ float SceneDist(float3 p)
     p1.xz = Rotate(p1.xz, time);
 
     //float len = SDFSphere3D(p1, r);
-    float len = SDFRoundBox(p1, size, 0.1f);
-    //float len = SDFOctahedron(p1, 0.3f);
+    //float len = SDFRoundBox(p1, size, 0.1f);
+    float len = SDFOctahedron(p1, 0.3f);
     //float len = SDFBox(p1, size);
     //float len = min(SDFOctahedron(p1, 0.3f), SDFOctahedron(p2, 0.3f));
     
@@ -479,13 +480,13 @@ float4 ps(Output o) : SV_Target
     
     
     //レイマーチング
-    if(basenorm.a==0)
+    if(/*basenorm.a == 0 && */rayMarch == 1)
     {
         float2 aspect = float2(w / h, 1);
         float rate = 0.8;
         float3 eye = float3(0, 0, -2.5 /*- rate * time*/);
         float2 tmp = o.tpos.xy * aspect;
-        float3 tpos = float3(tmp.x, tmp.y, 0/*-rate * time*/);
+        float3 tpos = float3(tmp.x, tmp.y, 0 /*-rate * time*/);
         float3 ray = normalize(tpos - eye);
         float3 light = float3(1, 1, -1);
         return RayMarching(eye, ray, light, 2);

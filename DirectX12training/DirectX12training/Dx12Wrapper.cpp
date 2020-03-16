@@ -157,7 +157,7 @@ bool Dx12Wrapper::CreateResourceAndView()
 	D3D12_CLEAR_VALUE clear = 
 	{
 		DXGI_FORMAT_R8G8B8A8_UNORM,
-		{ 0.0f,0.0f,0.0f,0.0f}
+		{ _status.color.x,_status.color.y,_status.color.z,0.0f}
 	};
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
@@ -740,6 +740,7 @@ bool Dx12Wrapper::StatusInit()
 	_status.bloomFlag = 0;
 	_status.dofFlag = 0;
 	_status.time = 0;
+	_status.rayMarch = 0;
 	ChangeColor();
 
 	size_t size = sizeof(_status);
@@ -850,7 +851,7 @@ bool Dx12Wrapper::Init()
 void Dx12Wrapper::Update()
 {
 	_input->Update();
-	_pmd1->Update();
+	//_pmd1->Update();
 	//_pmd2->Update();
 	//_pmx->Update();
 	CameraMove();
@@ -871,7 +872,7 @@ void Dx12Wrapper::Update()
 	
 	_cmdAllocator->Reset();//アロケータリセット
 	_cmdList->Reset(_cmdAllocator.Get(), nullptr);//コマンドリストリセット
-	float clearColor[] = { 0.0f,0.0f,0.0f,0.0f };
+	float clearColor[] = { _status.color.x,_status.color.y,_status.color.z,0.0f };
 
 	//バリアの設定
 	D3D12_RESOURCE_BARRIER barrierDesc{};
@@ -1014,9 +1015,7 @@ void Dx12Wrapper::Update()
 	ImGui::NewFrame();
 	ImGui::SetNextWindowSize(ImVec2(400, 400));
 	ImGui::Begin("GUI");
-	/*ImGui::ColorPicker3("Color1", col1);
-	ImGui::ColorPicker3("Color2", col2);
-	ImGui::ColorPicker3("Color3", col3);*/
+	ImGui::ColorPicker3("Color1", col);
 	ImGui::SliderInt("InstanceNum", &_instanceNum, 1, 25);
 	ImGui::SliderAngle("LightAngle", &_angle, -180, 180, "%.02f");
 	ImGui::CheckboxFlags("Debug", &_status.debug,1);
@@ -1024,6 +1023,7 @@ void Dx12Wrapper::Update()
 	ImGui::CheckboxFlags("NormalOutLine", &_status.normalOutLine,1);
 	ImGui::CheckboxFlags("Bloom", &_status.bloomFlag,1);
 	ImGui::CheckboxFlags("Dof", &_status.dofFlag,1);
+	ImGui::CheckboxFlags("RayMarch", &_status.rayMarch,1);
 	ImGui::End();
 	ImGui::Render();
 	_cmdList->SetDescriptorHeaps(1, _imguiHeap.GetAddressOf());
@@ -1092,11 +1092,13 @@ void Dx12Wrapper::CameraMove()
 	{
 		auto mat = XMMatrixTranslation(0, 0, speed);
 		_wvp.eye = XMVector3Transform(_wvp.eye, mat);
+		target = XMFLOAT3(target.x, target.y, target.z + speed);
 	}
 	if (_input->GetKey()[VK_DOWN] & 0x80)
 	{
 		auto mat = XMMatrixTranslation(0, 0, -speed);
-		_wvp.eye = XMVector3Transform(_wvp.eye, mat);
+		_wvp.eye = XMVector3Transform(_wvp.eye, mat);		
+		target = XMFLOAT3(target.x, target.y, target.z - speed);
 	}
 	if (_input->GetKey()[VK_LEFT] & 0x80)
 	{
@@ -1121,12 +1123,7 @@ void Dx12Wrapper::CameraMove()
 
 void Dx12Wrapper::ChangeColor()
 {
-	XMFLOAT3 tmpcol(col1[0], col1[1], col1[2]);
-	_status.color1 = XMLoadFloat3(&tmpcol);
-	tmpcol= XMFLOAT3(col2[0], col2[1], col2[2]);
-	_status.color2 = XMLoadFloat3(&tmpcol);
-	tmpcol = XMFLOAT3(col3[0], col3[1], col3[2]);
-	_status.color3 = XMLoadFloat3(&tmpcol);
+	_status.color = XMFLOAT3(col[0], col[1], col[2]);
 }
 
 void Dx12Wrapper::LightMove()
@@ -1166,7 +1163,6 @@ void Dx12Wrapper::DrawShrink()
 		_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
 		rtvH.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	}
-	
 
 	_cmdList->SetDescriptorHeaps(1, _peraSrvHeap.GetAddressOf());
 	_cmdList->SetGraphicsRootDescriptorTable(0, _peraSrvHeap->GetGPUDescriptorHandleForHeapStart());

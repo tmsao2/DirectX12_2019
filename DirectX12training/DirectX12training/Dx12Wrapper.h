@@ -40,10 +40,9 @@ struct GUIStatus
 	unsigned int normalOutLine;
 	unsigned int bloomFlag;
 	unsigned int dofFlag;
+	unsigned int rayMarch;
 	float time;
-	XMVECTOR color1;
-	XMVECTOR color2;
-	XMVECTOR color3;
+	XMFLOAT3 color;
 };
 
 
@@ -125,9 +124,7 @@ private:
 	float _angle = 0;
 	float _oldangle = 0;
 	int _instanceNum = 1;
-	float col1[3] = { 0,0,0 };
-	float col2[3] = { 0,0,0 };
-	float col3[3] = { 0,0,0 };
+	float col[3] = { 0,0,0 };
 	XMFLOAT3 target;
 
 	bool DeviceInit();

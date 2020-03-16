@@ -36,10 +36,10 @@ bool Plane::InitPipeLine(Microsoft::WRL::ComPtr<ID3D12Device> dev)
 
 bool Plane::InitVertex(Microsoft::WRL::ComPtr<ID3D12Device> dev)
 {
-	PriVertex vertex[] = {{{-25.0f, 0.0f,-25.0f},{0.0f,1.0f,0.0f},{0.0f,0.0f}},
-						  {{-25.0f, 0.0f, 25.0f},{0.0f,1.0f,0.0f},{0.0f,1.0f}},
-						  {{ 25.0f, 0.0f,-25.0f},{0.0f,1.0f,0.0f},{1.0f,0.0f}},
-						  {{ 25.0f, 0.0f, 25.0f},{0.0f,1.0f,0.0f},{1.0f,1.0f}}};
+	PriVertex vertex[] = {{{-50.0f, 0.0f,-50.0f},{0.0f,1.0f,0.0f},{0.0f,0.0f}},
+						  {{-50.0f, 0.0f, 50.0f},{0.0f,1.0f,0.0f},{0.0f,1.0f}},
+						  {{ 50.0f, 0.0f,-50.0f},{0.0f,1.0f,0.0f},{1.0f,0.0f}},
+						  {{ 50.0f, 0.0f, 50.0f},{0.0f,1.0f,0.0f},{1.0f,1.0f}}};
 
 	//頂点バッファ作成
 	auto result = dev->CreateCommittedResource(

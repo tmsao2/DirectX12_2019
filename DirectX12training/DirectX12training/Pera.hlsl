@@ -22,9 +22,7 @@ cbuffer status : register(b0)
     uint dofFlag;
     uint rayMarch;
     float time;
-    float3 col1;
-    float3 col2;
-    float3 col3;
+    float3 backcolor;
 };
 
 struct Output
@@ -47,6 +45,10 @@ Output vs(float4 pos : POSITION, float2 uv : TEXCOORD)
 float4 GaussianFilter(Texture2D<float4> t, SamplerState s, float2 uv, float dx, float dy)
 {
     float4 center = t.Sample(s, uv);
+    if (center.a == 0)
+    {
+        return center;
+    }
     float4 ret =
     t.Sample(s, uv + float2(-2 * dx, 2 * dy)) * 1 +
     t.Sample(s, uv + float2(-1 * dx, 2 * dy)) * 4 +
@@ -303,7 +305,7 @@ float4 RayMarching(float3 pos,float3 ray,float3 light,uint maxNum)
             return float4(col - pow(clamp(0.05 * depth, 0.0, 0.6), 2.0), 1);
         }
     }
-    return float4(0, 0, 0, 1);
+    return float4(backcolor, 1);
 }
 
 struct ShrinkOut
@@ -321,13 +323,18 @@ ShrinkOut BloomPS(Output o) : SV_Target
     ShrinkOut ret;
     ret.col = GaussianFilter(tex, smp, o.uv, dx, dy);
     ret.hightLight = GaussianFilter(bright, smp, o.uv, dx, dy);
+    if(ret.hightLight.a==0)
+    {
+        ret.hightLight = float4(0, 0, 0, 1);
+    }
     return ret;
 }
 
 
 //ピクセルシェーダ
 float4 ps(Output o) : SV_Target
-{    
+{
+    
     ///////////////////////////////////////デバッグ用/////////////////////////////////////////////
     if(debug == 1)
     {
@@ -428,23 +435,25 @@ float4 ps(Output o) : SV_Target
     }
     
     //ブルーム
-    float4 bloomAccum = GaussianFilter(bright,smp,o.uv,dx,dy);
+    float4 bloomAccum = float4(0,0,0,0);
     float2 uvSize = float2(1.0f, 0.5f);
     float2 uvOffset = float2(0, 0);
-    for (int i = 0; i < 4;++i)
+    if(bloomFlag!=0)
     {
-        bloomAccum += GaussianFilter(bloom, smp, o.uv * uvSize + uvOffset, dx, dy);
-        uvOffset.y += uvSize.y;
-        uvSize /= 2;
-    }
-    if(bloomFlag!=1)
-    {
-        bloomAccum = float4(0, 0, 0, 0);
+        for (int i = 0; i < 4; ++i)
+        {
+            //高輝度縮小バッファをぼかす
+            bloomAccum += GaussianFilter(bloom, smp, o.uv * uvSize + uvOffset, dx, dy);
+            uvOffset.y += uvSize.y;
+            uvSize /= 2;
+        }
+        //高輝度バッファをぼかす
+        bloomAccum += GaussianFilter(bright, smp, o.uv, dx, dy);
     }
     
     //被写界深度
     float depthDiff = abs(cameraDepth.Sample(smp, float2(0.5, 0.5)) - cameraDepth.Sample(smp, o.uv));
-    depthDiff = pow(depthDiff, 0.5f);
+    depthDiff = pow(depthDiff, 0.4f);
     uvSize = float2(1, 0.5);
     uvOffset = float2(0, 0);
     float t = depthDiff * 8;
@@ -480,7 +489,7 @@ float4 ps(Output o) : SV_Target
     
     
     //レイマーチング
-    if(/*basenorm.a == 0 && */rayMarch == 1)
+    if(basenorm.a == 0 && rayMarch == 1)
     {
         float2 aspect = float2(w / h, 1);
         float rate = 0.8;
@@ -491,6 +500,5 @@ float4 ps(Output o) : SV_Target
         float3 light = float3(1, 1, -1);
         return RayMarching(eye, ray, light, 2);
     }
-    
     return float4(color.rgb * edge * b + bloomAccum.rgb, color.a);
 }

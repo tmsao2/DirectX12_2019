@@ -154,10 +154,11 @@ bool Dx12Wrapper::CreateResourceAndView()
 	prop.VisibleNodeMask = 1;
 	prop.CreationNodeMask = 1;
 
+	XMStoreFloat3(&color,_status.color);
 	D3D12_CLEAR_VALUE clear = 
 	{
 		DXGI_FORMAT_R8G8B8A8_UNORM,
-		{ _status.color.x,_status.color.y,_status.color.z,0.0f}
+		{ color.x,color.y,color.z,0.0f}
 	};
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
@@ -815,8 +816,8 @@ bool Dx12Wrapper::Init()
 
 	_dev->CreateFence(_fenceValue, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(_fence.GetAddressOf()));
 
-	_pmd1.reset(new PMDModel(_dev.Get(), "model/初音ミク.pmd"));
-	//_pmd1.reset(new PMDModel(_dev.Get(), "model/初音ミクmetal.pmd"));
+	//_pmd1.reset(new PMDModel(_dev.Get(), "model/初音ミク.pmd"));
+	_pmd1.reset(new PMDModel(_dev.Get(), "model/初音ミクmetal.pmd"));
 	//_pmd2.reset(new PMDModel(_dev.Get(), "model/鏡音リン.pmd"));
 	//_pmd.reset(new PMDModel(_dev.Get(), "model/鏡音レン.pmd"));
 	//_pmd.reset(new PMDModel(_dev.Get(), "model/巡音ルカ.pmd"));
@@ -851,7 +852,7 @@ bool Dx12Wrapper::Init()
 void Dx12Wrapper::Update()
 {
 	_input->Update();
-	//_pmd1->Update();
+	_pmd1->Update();
 	//_pmd2->Update();
 	//_pmx->Update();
 	CameraMove();
@@ -872,7 +873,7 @@ void Dx12Wrapper::Update()
 	
 	_cmdAllocator->Reset();//アロケータリセット
 	_cmdList->Reset(_cmdAllocator.Get(), nullptr);//コマンドリストリセット
-	float clearColor[] = { _status.color.x,_status.color.y,_status.color.z,0.0f };
+	float clearColor[] = { color.x,color.y,color.z,0.0f };
 
 	//バリアの設定
 	D3D12_RESOURCE_BARRIER barrierDesc{};
@@ -1123,7 +1124,8 @@ void Dx12Wrapper::CameraMove()
 
 void Dx12Wrapper::ChangeColor()
 {
-	_status.color = XMFLOAT3(col[0], col[1], col[2]);
+	color = XMFLOAT3(col[0], col[1], col[2]);
+	_status.color = XMLoadFloat3(&color);
 }
 
 void Dx12Wrapper::LightMove()
@@ -1145,7 +1147,7 @@ void Dx12Wrapper::LightMove()
 
 void Dx12Wrapper::DrawShrink()
 {
-	float clearColor[] = { 0.0f,0.0f,0.0f,1.0f };
+	float clearColor[] = { color.x,color.y,color.z,0.0f };
 	_cmdList->SetPipelineState(_shrinkPipeline.Get());
 	_cmdList->SetGraphicsRootSignature(_peraSignature.Get());
 

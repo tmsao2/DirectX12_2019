@@ -39,19 +39,22 @@ struct PixelOut
     float4 normal : SV_Target1;
 };
 
-PixelOut PrimitivePS(Output o)
-{
-    PixelOut po;
-    float4 color=float4(1, 1, 1, 1);
-    float4 tpos = mul(lvp, o.pos);
-    float2 uv = (float2(1, -1) + tpos.xy) * float2(0.5, -0.5);
-
-    if (tpos.z > depth.Sample(smp, uv))
+    PixelOut PrimitivePS(Output o)
     {
-        color.rgb *= 0.5f;
-    }
+        PixelOut po;
+        float4 color=float4(1, 1, 1, 1);
+        float4 tpos = mul(lvp, o.pos);
+        float2 uv = (float2(1, -1) + tpos.xy) * float2(0.5, -0.5);
+
+        //[“xî•ñ”äŠr
+        if (tpos.z > depth.Sample(smp, uv))
+        {
+            //ˆÃ‚­‚·‚é
+            color.rgb *= 0.5f;
+        }
     
-    po.color = color;
-    po.normal = o.normal;
-    return po;
-}
+        po.color = color;
+        po.normal = o.normal;
+    
+        return po;
+    }

@@ -109,12 +109,14 @@ PixelOut PmdPS(Out o)
                 * diffuse
                 * color
                 * sph.Sample(smp, normalUV) /* * float4(lim, lim, lim, 1)*/
+                + float4(ambient/2, 0.0f)
                 + saturate(spa.Sample(smp, normalUV) * color)
                 + float4(specular * spec, 0));
     
     po.normal = float4(float3(0.5, 0.5, -0.5) * (o.normal.xyz + float3(1, 1, -1)), o.normal.w);
     po.bright = float4(0, 0, 0, 1);
-    if (brightness > 0.25f)
+
+    if (brightness > 0.96f)
     {
         po.bright = po.color;
     }

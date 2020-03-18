@@ -42,7 +42,7 @@ struct GUIStatus
 	unsigned int dofFlag;
 	unsigned int rayMarch;
 	float time;
-	XMFLOAT3 color;
+	XMVECTOR color;
 };
 
 
@@ -125,6 +125,7 @@ private:
 	float _oldangle = 0;
 	int _instanceNum = 1;
 	float col[3] = { 0,0,0 };
+	XMFLOAT3 color;
 	XMFLOAT3 target;
 
 	bool DeviceInit();
